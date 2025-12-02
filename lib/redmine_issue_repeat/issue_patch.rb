@@ -33,7 +33,9 @@ module RedmineIssueRepeat
         if cf
           new_issue.custom_field_values = { cf.id => nil }
         end
-        new_issue.save
+        if new_issue.save
+          IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
+        end
       end
 
       def compute_start_date(delta)
@@ -47,4 +49,3 @@ module RedmineIssueRepeat
     end
   end
 end
-
