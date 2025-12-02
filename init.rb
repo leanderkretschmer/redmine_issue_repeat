@@ -7,6 +7,11 @@ Redmine::Plugin.register :redmine_issue_repeat do
   author 'Leander Kretschmer'
   author_url 'https://github.com/leanderkretschmer/redmine_issue_repeat'
   description 'Erstellt automatisch eine Kopie eines Tickets basierend auf dem Intervall.'
-  version '0.1.0'
+  version '0.2.0'
+  settings default: {
+    'daily_time' => '09:00',
+    'weekly_time' => '09:00',
+    'monthly_time' => '09:00',
+    'hourly_minute' => '0'
+  }, partial: 'settings/redmine_issue_repeat'
 end
-

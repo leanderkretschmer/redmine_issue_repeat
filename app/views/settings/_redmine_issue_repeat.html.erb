@@ -1,0 +1,44 @@
+<% settings = Setting.plugin_redmine_issue_repeat || {} %>
+<p>
+  <label>Uhrzeit täglich (HH:MM)</label>
+  <%= text_field_tag 'settings[daily_time]', settings['daily_time'] %>
+</p>
+<p>
+  <label>Uhrzeit wöchentlich (HH:MM)</label>
+  <%= text_field_tag 'settings[weekly_time]', settings['weekly_time'] %>
+</p>
+<p>
+  <label>Uhrzeit monatlich (HH:MM)</label>
+  <%= text_field_tag 'settings[monthly_time]', settings['monthly_time'] %>
+</p>
+<p>
+  <label>Minuten bei stündlich (0–59, 0 = volle Stunde)</label>
+  <%= number_field_tag 'settings[hourly_minute]', (settings['hourly_minute'] || '0'), in: 0..59 %>
+</p>
+
+<h3>Aktive Wiederholungen</h3>
+<table class="list issues">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Projekt</th>
+      <th>Betreff</th>
+      <th>Intervall</th>
+      <th>Nächste Erstellung</th>
+    </tr>
+  </thead>
+  <tbody>
+  <% RedmineIssueRepeat::IssueRepeatSchedule.includes(:issue).order('next_run_at ASC').each do |s| %>
+    <% issue = s.issue %>
+    <% next unless issue %>
+    <tr>
+      <td><%= link_to issue.id, issue_path(issue) %></td>
+      <td><%= issue.project.try(:name) %></td>
+      <td><%= h(issue.subject) %></td>
+      <td><%= h(issue.custom_field_value(IssueCustomField.find_by(name: 'Intervall').try(:id))) %></td>
+      <td><%= format_time(s.next_run_at) %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+

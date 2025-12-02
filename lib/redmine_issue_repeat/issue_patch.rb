@@ -20,21 +20,29 @@ module RedmineIssueRepeat
                 when 'monatlich' then :month
                 else nil
                 end
-        return unless delta
-        new_issue = Issue.new
-        new_issue.project = project
-        new_issue.tracker = tracker
-        new_issue.subject = subject
-        new_issue.description = description
-        new_issue.assigned_to = assigned_to
-        new_issue.estimated_hours = estimated_hours
-        new_issue.start_date = compute_start_date(delta)
-        new_issue.status = IssueStatus.default
-        if cf
-          new_issue.custom_field_values = { cf.id => nil }
+        if delta
+          unless interval == 'stündlich'
+            new_issue = Issue.new
+            new_issue.project = project
+            new_issue.tracker = tracker
+            new_issue.subject = subject
+            new_issue.description = description
+            new_issue.assigned_to = assigned_to
+            new_issue.estimated_hours = estimated_hours
+            new_issue.start_date = compute_start_date(delta)
+            new_issue.status = IssueStatus.default
+            if cf
+              new_issue.custom_field_values = { cf.id => nil }
+            end
+            if new_issue.save
+              IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
+            end
+          end
         end
-        if new_issue.save
-          IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
+
+        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
+        if next_run
+          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: RedmineIssueRepeat::Scheduler.interval_value(self), next_run_at: next_run, anchor_day: created_on.day)
         end
       end
 
