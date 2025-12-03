@@ -10,23 +10,27 @@ namespace :redmine_issue_repeat do
         issue = Issue.where(id: iid).first
         next unless issue
         interval = interval_value(issue)
-        next_run = next_run_for(issue, base_time: Time.current)
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: iid)
         if sched.new_record?
+          next_run = next_run_for(issue, base_time: Time.current)
           sched.interval = interval if interval
           sched.next_run_at = next_run if next_run
           sched.anchor_day = issue.created_on.day
           if sched.next_run_at && sched.save
             Rails.logger.info("[IssueRepeat] process:init sched=#{sched.id} issue=#{iid} interval=#{sched.interval} next_run_at=#{sched.next_run_at}")
+          else
+            Rails.logger.info("[IssueRepeat] process:init skipped issue=#{iid} next_run_at missing")
           end
         else
           updates = {}
           updates[:interval] = interval if interval && sched.interval != interval
-          updates[:next_run_at] = next_run if next_run && sched.next_run_at != next_run
           updates[:anchor_day] = issue.created_on.day if sched.anchor_day != issue.created_on.day
+          # Do NOT move next_run_at forward here; leave due times intact
           if updates.any?
             sched.update!(updates)
             Rails.logger.info("[IssueRepeat] process:update sched=#{sched.id} issue=#{iid} changes=#{updates.inspect}")
+          else
+            Rails.logger.info("[IssueRepeat] process:skip sched=#{sched.id} issue=#{iid} no changes")
           end
         end
       end
