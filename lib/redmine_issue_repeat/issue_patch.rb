@@ -13,9 +13,14 @@ module RedmineIssueRepeat
         cf = IssueCustomField.find_by(name: 'Intervall')
         return unless cf
         reload
-        val = custom_field_value(cf.id)
+        val = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf.id).limit(1).pluck(:value).first
         return if val.nil? || val.to_s.strip.empty?
-        interval = val.to_s.downcase
+        interval = case val.to_s.downcase
+                   when 'woechentlich' then 'wöchentlich'
+                   when 'taeglich' then 'täglich'
+                   when 'stundlich' then 'stündlich'
+                   else val.to_s.downcase
+                   end
         Rails.logger.info("[IssueRepeat] create: issue=#{id} interval=#{interval}")
         delta = case interval
                 when 'täglich' then 1
@@ -47,7 +52,7 @@ module RedmineIssueRepeat
         next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
         Rails.logger.info("[IssueRepeat] create: computed next_run=#{next_run}") if next_run
         if next_run
-          sched = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: RedmineIssueRepeat::Scheduler.interval_value(self), next_run_at: next_run, anchor_day: created_on.day)
+          sched = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: interval, next_run_at: next_run, anchor_day: created_on.day)
           Rails.logger.info("[IssueRepeat] create: schedule created sched=#{sched.id} issue=#{id} interval=#{sched.interval} next_run_at=#{sched.next_run_at}")
         end
       end
@@ -56,7 +61,7 @@ module RedmineIssueRepeat
         cf = IssueCustomField.find_by(name: 'Intervall')
         return unless cf
         reload
-        val = custom_field_value(cf.id)
+        val = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf.id).limit(1).pluck(:value).first
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: id)
 
         if val.nil? || val.to_s.strip.empty?
@@ -69,7 +74,12 @@ module RedmineIssueRepeat
           return
         end
 
-        interval = RedmineIssueRepeat::Scheduler.interval_value(self)
+        interval = case val.to_s.downcase
+                   when 'woechentlich' then 'wöchentlich'
+                   when 'taeglich' then 'täglich'
+                   when 'stundlich' then 'stündlich'
+                   else val.to_s.downcase
+                   end
         return unless interval
 
         next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)

@@ -14,25 +14,34 @@ module RedmineIssueRepeat
 
     def next_run_for(issue, base_time: Time.current)
       val = interval_value(issue)
+      Rails.logger.info("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
       return nil unless val
       case val
       when 'stündlich'
         minute = (settings['hourly_minute'] || '0').to_i % 60
         t = base_time + 3600
-        Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
+        run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
+        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        run
       when 'täglich'
         h, m = parse_time(settings['daily_time'])
         d = base_time.to_date + 1
-        Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        run = Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        run
       when 'wöchentlich'
         h, m = parse_time(settings['weekly_time'])
         d = base_time.to_date + 7
-        Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        run = Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        run
       when 'monatlich'
         h, m = parse_time(settings['monthly_time'])
         anchor_day = issue.created_on.day
         next_date = next_month_date(base_time.to_date, anchor_day)
-        Time.new(next_date.year, next_date.month, next_date.day, h, m, 0, base_time.utc_offset)
+        run = Time.new(next_date.year, next_date.month, next_date.day, h, m, 0, base_time.utc_offset)
+        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        run
       else
         nil
       end
@@ -41,7 +50,7 @@ module RedmineIssueRepeat
     def interval_value(issue)
       cf = IssueCustomField.find_by(name: 'Intervall')
       return nil unless cf
-      v = issue.custom_field_value(cf.id)
+      v = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf.id).limit(1).pluck(:value).first
       val = v && v.to_s.downcase
       case val
       when 'woechentlich' then 'wöchentlich'
