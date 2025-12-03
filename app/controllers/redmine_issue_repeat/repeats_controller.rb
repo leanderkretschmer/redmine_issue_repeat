@@ -6,6 +6,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     issue = sched.issue
     interval = RedmineIssueRepeat::Scheduler.interval_value(issue)
     return render_404 unless issue && interval
+    Rails.logger.info("[IssueRepeat] repeat_now: sched=#{sched.id} issue=#{issue.id} interval=#{interval}")
 
     new_issue = Issue.new
     new_issue.project = issue.project
@@ -24,9 +25,11 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
       next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current)
       sched.update!(next_run_at: next_run) if next_run
+      Rails.logger.info("[IssueRepeat] repeat_now: created new_issue=#{new_issue.id} from=#{issue.id} next_run_at=#{next_run}")
       flash[:notice] = l(:notice_successful_update)
     else
       flash[:error] = new_issue.errors.full_messages.join(', ')
+      Rails.logger.error("[IssueRepeat] repeat_now: failed to create copy for issue=#{issue.id}: #{new_issue.errors.full_messages.join(', ')}")
     end
 
     redirect_back fallback_location: home_path

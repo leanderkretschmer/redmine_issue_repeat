@@ -9,6 +9,7 @@ namespace :redmine_issue_repeat do
       next unless issue && interval_value(issue)
 
       interval = interval_value(issue)
+      Rails.logger.info("[IssueRepeat] process: sched=#{sched.id} issue=#{issue.id} interval=#{interval} due=#{sched.next_run_at}")
       new_issue = Issue.new
       new_issue.project = issue.project
       new_issue.tracker = issue.tracker
@@ -24,6 +25,7 @@ namespace :redmine_issue_repeat do
 
       if new_issue.save
         IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+        Rails.logger.info("[IssueRepeat] process: created new_issue=#{new_issue.id} from=#{issue.id} start_date=#{new_issue.start_date}")
         # Compute the following run
         next_time = case interval
                     when 'stündlich'
@@ -38,6 +40,9 @@ namespace :redmine_issue_repeat do
                       Time.new(d.year, d.month, d.day, sched.next_run_at.hour, sched.next_run_at.min, 0, sched.next_run_at.utc_offset)
                     end
         sched.update!(next_run_at: next_time)
+        Rails.logger.info("[IssueRepeat] process: rescheduled sched=#{sched.id} next_run_at=#{next_time}")
+      else
+        Rails.logger.error("[IssueRepeat] process: failed to create copy for issue=#{issue.id}: #{new_issue.errors.full_messages.join(', ')}")
       end
     end
   end
@@ -63,9 +68,19 @@ namespace :redmine_issue_repeat do
           updates[:interval] = interval if sched.interval != interval
           updates[:next_run_at] = next_run if next_run
           updates[:anchor_day] = issue.created_on.day if sched.anchor_day != issue.created_on.day
-          sched.update!(updates) unless updates.empty?
+          if updates.empty?
+            Rails.logger.info("[IssueRepeat] backfill: no changes for issue=#{issue.id} sched=#{sched.id}")
+          else
+            sched.update!(updates)
+            Rails.logger.info("[IssueRepeat] backfill: updated issue=#{issue.id} sched=#{sched.id} changes=#{updates.inspect}")
+          end
         else
-          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: issue.id, interval: interval, next_run_at: next_run, anchor_day: issue.created_on.day) if next_run
+          if next_run
+            sched_new = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: issue.id, interval: interval, next_run_at: next_run, anchor_day: issue.created_on.day)
+            Rails.logger.info("[IssueRepeat] backfill: created sched=#{sched_new.id} issue=#{issue.id} interval=#{interval} next_run_at=#{next_run}")
+          else
+            Rails.logger.info("[IssueRepeat] backfill: no next_run computed for issue=#{issue.id} interval=#{interval}")
+          end
         end
       end
     end

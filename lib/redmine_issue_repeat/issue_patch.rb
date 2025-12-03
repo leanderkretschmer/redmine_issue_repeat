@@ -15,6 +15,7 @@ module RedmineIssueRepeat
         val = custom_field_value(cf.id)
         return if val.nil? || val.to_s.strip.empty?
         interval = val.to_s.downcase
+        Rails.logger.info("[IssueRepeat] create: issue=#{id} interval=#{interval}")
         delta = case interval
                 when 'täglich' then 1
                 when 'woechentlich', 'wöchentlich' then 7
@@ -37,13 +38,16 @@ module RedmineIssueRepeat
             end
             if new_issue.save
               IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
+              Rails.logger.info("[IssueRepeat] create: copied new_issue=#{new_issue.id} from=#{id} start_date=#{new_issue.start_date}")
             end
           end
         end
 
         next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
+        Rails.logger.info("[IssueRepeat] create: computed next_run=#{next_run}") if next_run
         if next_run
-          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: RedmineIssueRepeat::Scheduler.interval_value(self), next_run_at: next_run, anchor_day: created_on.day)
+          sched = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: RedmineIssueRepeat::Scheduler.interval_value(self), next_run_at: next_run, anchor_day: created_on.day)
+          Rails.logger.info("[IssueRepeat] create: schedule created sched=#{sched.id} issue=#{id} interval=#{sched.interval} next_run_at=#{sched.next_run_at}")
         end
       end
 
@@ -55,7 +59,12 @@ module RedmineIssueRepeat
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: id)
 
         if val.nil? || val.to_s.strip.empty?
-          sched&.destroy
+          if sched
+            Rails.logger.info("[IssueRepeat] update: interval cleared, destroying schedule for issue=#{id} sched=#{sched.id}")
+            sched.destroy
+          else
+            Rails.logger.info("[IssueRepeat] update: interval cleared, no schedule present for issue=#{id}")
+          end
           return
         end
 
@@ -68,9 +77,19 @@ module RedmineIssueRepeat
           updates[:interval] = interval if sched.interval != interval
           updates[:next_run_at] = next_run if next_run
           updates[:anchor_day] = created_on.day if sched.anchor_day != created_on.day
-          sched.update!(updates) unless updates.empty?
+          if updates.empty?
+            Rails.logger.info("[IssueRepeat] update: no changes for schedule issue=#{id} sched=#{sched.id}")
+          else
+            sched.update!(updates)
+            Rails.logger.info("[IssueRepeat] update: schedule updated issue=#{id} sched=#{sched.id} changes=#{updates.inspect}")
+          end
         else
-          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: interval, next_run_at: next_run, anchor_day: created_on.day) if next_run
+          if next_run
+            sched = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: interval, next_run_at: next_run, anchor_day: created_on.day)
+            Rails.logger.info("[IssueRepeat] update: schedule created sched=#{sched.id} issue=#{id} interval=#{interval} next_run_at=#{next_run}")
+          else
+            Rails.logger.info("[IssueRepeat] update: no next_run computed for issue=#{id} interval=#{interval}")
+          end
         end
       end
 
