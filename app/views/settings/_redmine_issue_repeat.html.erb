@@ -17,6 +17,15 @@
 </p>
 
 <h3>Aktive Wiederholungen</h3>
+<% cf = IssueCustomField.find_by(name: 'Intervall') %>
+<% issues = [] %>
+<% if cf %>
+  <% CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid| %>
+    <% issue = Issue.where(id: iid).first %>
+    <% issues << issue if issue %>
+  <% end %>
+<% end %>
+
 <table class="list issues">
   <thead>
     <tr>
@@ -29,17 +38,17 @@
     </tr>
   </thead>
   <tbody>
-  <% RedmineIssueRepeat::IssueRepeatSchedule.includes(:issue).order('next_run_at ASC').each do |s| %>
-    <% issue = s.issue %>
-    <% next unless issue %>
+  <% issues.each do |issue| %>
+    <% interval = RedmineIssueRepeat::Scheduler.interval_value(issue) %>
+    <% next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current) %>
     <tr>
       <td><%= link_to issue.id, issue_path(issue) %></td>
       <td><%= issue.project.try(:name) %></td>
       <td><%= h(issue.subject) %></td>
-      <td><%= h(issue.custom_field_value(IssueCustomField.find_by(name: 'Intervall').try(:id))) %></td>
-      <td><%= format_time(s.next_run_at) %></td>
+      <td><%= h(interval) %></td>
+      <td><%= next_run ? format_time(next_run) : '-' %></td>
       <td>
-        <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_path(s), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
+        <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(issue), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
       </td>
     </tr>
   <% end %>

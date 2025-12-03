@@ -4,6 +4,34 @@ namespace :redmine_issue_repeat do
     require_relative '../redmine_issue_repeat/scheduler'
     include RedmineIssueRepeat::Scheduler
 
+    cf = IssueCustomField.find_by(name: 'Intervall')
+    if cf
+      CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
+        issue = Issue.where(id: iid).first
+        next unless issue
+        interval = interval_value(issue)
+        next_run = next_run_for(issue, base_time: Time.current)
+        sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: iid)
+        if sched.new_record?
+          sched.interval = interval if interval
+          sched.next_run_at = next_run if next_run
+          sched.anchor_day = issue.created_on.day
+          if sched.next_run_at && sched.save
+            Rails.logger.info("[IssueRepeat] process:init sched=#{sched.id} issue=#{iid} interval=#{sched.interval} next_run_at=#{sched.next_run_at}")
+          end
+        else
+          updates = {}
+          updates[:interval] = interval if interval && sched.interval != interval
+          updates[:next_run_at] = next_run if next_run && sched.next_run_at != next_run
+          updates[:anchor_day] = issue.created_on.day if sched.anchor_day != issue.created_on.day
+          if updates.any?
+            sched.update!(updates)
+            Rails.logger.info("[IssueRepeat] process:update sched=#{sched.id} issue=#{iid} changes=#{updates.inspect}")
+          end
+        end
+      end
+    end
+
     RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.current).find_each do |sched|
       issue = sched.issue
       next unless issue && interval_value(issue)
@@ -55,7 +83,7 @@ namespace :redmine_issue_repeat do
     cf = IssueCustomField.find_by(name: 'Intervall')
     if cf
       Issue.all.find_each do |issue|
-        val = issue.custom_field_value(cf.id)
+        val = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf.id).limit(1).pluck(:value).first
         next if val.nil? || val.to_s.strip.empty?
 
         interval = interval_value(issue)
