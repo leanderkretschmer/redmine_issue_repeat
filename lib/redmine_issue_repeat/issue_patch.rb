@@ -4,6 +4,7 @@ module RedmineIssueRepeat
       Issue.include InstanceMethods unless Issue < InstanceMethods
       Issue.class_eval do
         after_commit :repeat_issue_after_create, on: :create
+        after_commit :update_repeat_schedule_after_update, on: :update
       end
     end
 
@@ -43,6 +44,32 @@ module RedmineIssueRepeat
         next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
         if next_run
           RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: RedmineIssueRepeat::Scheduler.interval_value(self), next_run_at: next_run, anchor_day: created_on.day)
+        end
+      end
+
+      def update_repeat_schedule_after_update
+        cf = IssueCustomField.find_by(name: 'Intervall')
+        return unless cf
+        val = custom_field_value(cf.id)
+        sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: id)
+
+        if val.nil? || val.to_s.strip.empty?
+          sched&.destroy
+          return
+        end
+
+        interval = RedmineIssueRepeat::Scheduler.interval_value(self)
+        return unless interval
+
+        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
+        if sched
+          updates = {}
+          updates[:interval] = interval if sched.interval != interval
+          updates[:next_run_at] = next_run if next_run
+          updates[:anchor_day] = created_on.day if sched.anchor_day != created_on.day
+          sched.update!(updates) unless updates.empty?
+        else
+          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: id, interval: interval, next_run_at: next_run, anchor_day: created_on.day) if next_run
         end
       end
 

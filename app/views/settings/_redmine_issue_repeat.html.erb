@@ -25,6 +25,7 @@
       <th>Betreff</th>
       <th>Intervall</th>
       <th>Nächste Erstellung</th>
+      <th>Aktion</th>
     </tr>
   </thead>
   <tbody>
@@ -37,6 +38,9 @@
       <td><%= h(issue.subject) %></td>
       <td><%= h(issue.custom_field_value(IssueCustomField.find_by(name: 'Intervall').try(:id))) %></td>
       <td><%= format_time(s.next_run_at) %></td>
+      <td>
+        <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_path(s), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
+      </td>
     </tr>
   <% end %>
   </tbody>
