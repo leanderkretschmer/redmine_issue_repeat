@@ -12,6 +12,7 @@ module RedmineIssueRepeat
       def repeat_issue_after_create
         cf = IssueCustomField.find_by(name: 'Intervall')
         return unless cf
+        reload
         val = custom_field_value(cf.id)
         return if val.nil? || val.to_s.strip.empty?
         interval = val.to_s.downcase
