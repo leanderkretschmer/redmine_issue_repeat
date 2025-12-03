@@ -41,5 +41,34 @@ namespace :redmine_issue_repeat do
       end
     end
   end
+
+  desc 'Backfill schedules for issues with Intervall set'
+  task backfill_schedules: :environment do
+    require_relative '../redmine_issue_repeat/scheduler'
+    include RedmineIssueRepeat::Scheduler
+
+    cf = IssueCustomField.find_by(name: 'Intervall')
+    if cf
+      Issue.all.find_each do |issue|
+        val = issue.custom_field_value(cf.id)
+        next if val.nil? || val.to_s.strip.empty?
+
+        interval = interval_value(issue)
+        next unless interval
+
+        sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: issue.id)
+        next_run = next_run_for(issue, base_time: Time.current)
+        if sched
+          updates = {}
+          updates[:interval] = interval if sched.interval != interval
+          updates[:next_run_at] = next_run if next_run
+          updates[:anchor_day] = issue.created_on.day if sched.anchor_day != issue.created_on.day
+          sched.update!(updates) unless updates.empty?
+        else
+          RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: issue.id, interval: interval, next_run_at: next_run, anchor_day: issue.created_on.day) if next_run
+        end
+      end
+    end
+  end
 end
 

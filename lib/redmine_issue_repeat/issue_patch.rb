@@ -50,6 +50,7 @@ module RedmineIssueRepeat
       def update_repeat_schedule_after_update
         cf = IssueCustomField.find_by(name: 'Intervall')
         return unless cf
+        reload
         val = custom_field_value(cf.id)
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: id)
 
