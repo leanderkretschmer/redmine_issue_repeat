@@ -16,46 +16,38 @@
   <%= number_field_tag 'settings[hourly_minute]', (settings['hourly_minute'] || '0'), in: 0..59 %>
 </p>
 
-<h3>Aktive Wiederholungen</h3>
-<% cf = IssueCustomField.find_by(name: 'Intervall') %>
-<% issues = [] %>
-<% if cf %>
-  <% CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid| %>
-    <% issue = Issue.where(id: iid).first %>
-    <% issues << issue if issue %>
-  <% end %>
-<% end %>
-
-<table class="list issues">
+<h3>Wiederholungs-Zeitpläne</h3>
+<table class="list">
   <thead>
     <tr>
-      <th>ID</th>
-      <th>Projekt</th>
-      <th>Betreff</th>
-      <th>Intervall</th>
-      <th>Nächste Erstellung</th>
-      <th>Aktiv</th>
-      <th>Times Run</th>
-      <th>Aktion</th>
+      <th>id</th>
+      <th>issue_id</th>
+      <th>intervall</th>
+      <th>created_at</th>
+      <th>updated_at</th>
+      <th>times_run</th>
+      <th>active</th>
+      <th>anchor_minute</th>
+      <th>anchor_hour</th>
+      <th>anchor_day</th>
+      <th>backup_anchor_day</th>
     </tr>
   </thead>
   <tbody>
-  <% issues.each do |issue| %>
-    <% interval = RedmineIssueRepeat::Scheduler.interval_value(issue) %>
-    <% sched = RedmineIssueRepeat::IssueRepeatSchedule.where(issue_id: issue.id).first %>
-    <% next_run = (sched && sched.next_run_at) || RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current) %>
+  <% RedmineIssueRepeat::IssueRepeatSchedule.order('id ASC').each do |s| %>
     <tr>
-      <td><%= link_to issue.id, issue_path(issue) %></td>
-      <td><%= issue.project.try(:name) %></td>
-      <td><%= h(issue.subject) %></td>
-      <td><%= h(interval) %></td>
-      <td><%= next_run ? format_time(next_run) : '-' %></td>
-      <td><%= sched ? (sched.active ? 'ja' : 'nein') : 'ja' %></td>
-      <td><%= sched ? sched.times_run : 0 %></td>
-      <td>
-        <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(issue), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
-      </td>
+      <td><%= s.id %></td>
+      <td><%= s.issue_id %></td>
+      <td><%= h(s.interval) %></td>
+      <td><%= format_time(s.created_at) %></td>
+      <td><%= format_time(s.updated_at) %></td>
+      <td><%= s.times_run %></td>
+      <td><%= s.active ? 'ja' : 'nein' %></td>
+      <td><%= s.anchor_minute %></td>
+      <td><%= s.anchor_hour %></td>
+      <td><%= s.anchor_day %></td>
+      <td><%= s.backup_anchor_day %></td>
     </tr>
   <% end %>
   </tbody>
-</table>
+  </table>
