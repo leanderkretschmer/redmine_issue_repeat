@@ -96,7 +96,7 @@ module RedmineIssueRepeat
       end
 
       def default_issue_status
-        IssueStatus.where(is_default: true).order(:id).first || IssueStatus.order(:id).first
+        IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first
       end
     end
   end

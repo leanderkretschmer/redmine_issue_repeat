@@ -104,7 +104,7 @@ module RedmineIssueRepeat
         new_issue.assigned_to = issue.assigned_to
         new_issue.estimated_hours = issue.estimated_hours
         new_issue.start_date = Scheduler.start_date_for(interval, sched.next_run_at)
-        new_issue.status = (IssueStatus.where(is_default: true).order(:id).first || IssueStatus.order(:id).first)
+        new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
         cf_id = Scheduler.interval_cf_id(issue)
         new_issue.custom_field_values = { cf_id => nil } if cf_id
 
