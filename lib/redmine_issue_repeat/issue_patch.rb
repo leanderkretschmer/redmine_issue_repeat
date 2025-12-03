@@ -32,7 +32,7 @@ module RedmineIssueRepeat
           new_issue.assigned_to = assigned_to
           new_issue.estimated_hours = estimated_hours
           new_issue.start_date = compute_start_date(delta)
-          new_issue.status = IssueStatus.default
+          new_issue.status = default_issue_status
           new_issue.custom_field_values = { cf.id => nil }
           if new_issue.save
             IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
@@ -93,6 +93,10 @@ module RedmineIssueRepeat
         else
           d + delta
         end
+      end
+
+      def default_issue_status
+        IssueStatus.where(is_default: true).order(:id).first || IssueStatus.order(:id).first
       end
     end
   end
