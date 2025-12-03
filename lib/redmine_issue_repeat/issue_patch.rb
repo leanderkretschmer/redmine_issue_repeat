@@ -39,9 +39,8 @@ module RedmineIssueRepeat
             new_issue.estimated_hours = estimated_hours
             new_issue.start_date = compute_start_date(delta)
             new_issue.status = IssueStatus.default
-            if cf
-              new_issue.custom_field_values = { cf.id => nil }
-            end
+            cf_id = RedmineIssueRepeat::Scheduler.interval_cf_id(self)
+            new_issue.custom_field_values = { cf_id => nil } if cf_id
             if new_issue.save
               IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
               Rails.logger.info("[IssueRepeat] create: copied new_issue=#{new_issue.id} from=#{id} start_date=#{new_issue.start_date}")

@@ -20,8 +20,8 @@ namespace :redmine_issue_repeat do
       new_issue.start_date = start_date_for(interval, sched.next_run_at)
       new_issue.status = IssueStatus.default
 
-      cf = IssueCustomField.find_by(name: 'Intervall')
-      new_issue.custom_field_values = { cf.id => nil } if cf
+      cf_id = interval_cf_id(issue)
+      new_issue.custom_field_values = { cf_id => nil } if cf_id
 
       if new_issue.save
         IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
