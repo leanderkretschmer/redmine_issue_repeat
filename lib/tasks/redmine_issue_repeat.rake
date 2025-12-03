@@ -36,9 +36,19 @@ namespace :redmine_issue_repeat do
       end
     end
 
-    RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.current).find_each do |sched|
+    RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.current).where(active: true).find_each do |sched|
       issue = sched.issue
-      next unless issue && interval_value(issue)
+      unless issue && interval_value(issue)
+        sched.update!(active: false)
+        Rails.logger.info("[IssueRepeat] process: deactivated sched=#{sched.id} missing interval or issue")
+        next
+      end
+
+      if issue.closed?
+        sched.update!(active: false)
+        Rails.logger.info("[IssueRepeat] process: deactivated sched=#{sched.id} issue=#{issue.id} closed")
+        next
+      end
 
       interval = interval_value(issue)
       Rails.logger.info("[IssueRepeat] process: sched=#{sched.id} issue=#{issue.id} interval=#{interval} due=#{sched.next_run_at}")
@@ -61,17 +71,36 @@ namespace :redmine_issue_repeat do
         # Compute the following run
         next_time = case interval
                     when 'stündlich'
-                      sched.next_run_at + 1.hour
+                      # keep same minute, next hour
+                      t = sched.next_run_at + 1.hour
+                      minute = (sched.anchor_minute || (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i) % 60
+                      Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
                     when 'täglich'
-                      sched.next_run_at + 1.day
+                      d = (sched.next_run_at + 1.day).to_date
+                      h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).first
+                      m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).last
+                      Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'wöchentlich'
-                      sched.next_run_at + 7.days
+                      d = (sched.next_run_at + 7.days).to_date
+                      h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).first
+                      m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).last
+                      Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'monatlich'
-                      anchor_day = issue.created_on.day
-                      d = next_month_date(sched.next_run_at.to_date, anchor_day)
-                      Time.new(d.year, d.month, d.day, sched.next_run_at.hour, sched.next_run_at.min, 0, sched.next_run_at.utc_offset)
+                      anchor_day = sched.anchor_day || issue.created_on.day
+                      d = RedmineIssueRepeat::Scheduler.next_month_date(sched.next_run_at.to_date, anchor_day)
+                      # if 31/30 fallback when needed
+                      last = Date.civil(d.year, d.month, -1)
+                      day = [anchor_day, last.day].min
+                      if anchor_day == 31 && last.day == 30 && sched.backup_anchor_day == 30
+                        day = 30
+                      elsif anchor_day >= 30 && last.day < anchor_day && sched.backup_anchor_day && sched.backup_anchor_day <= last.day
+                        day = sched.backup_anchor_day
+                      end
+                      h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).first
+                      m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).last
+                      Time.new(d.year, d.month, day, h, m, 0, sched.next_run_at.utc_offset)
                     end
-        sched.update!(next_run_at: next_time)
+        sched.update!(next_run_at: next_time, times_run: (sched.times_run + 1))
         Rails.logger.info("[IssueRepeat] process: rescheduled sched=#{sched.id} next_run_at=#{next_time}")
       else
         Rails.logger.error("[IssueRepeat] process: failed to create copy for issue=#{issue.id}: #{new_issue.errors.full_messages.join(', ')}")
@@ -99,7 +128,30 @@ namespace :redmine_issue_repeat do
           updates = {}
           updates[:interval] = interval if sched.interval != interval
           updates[:next_run_at] = next_run if next_run
-          updates[:anchor_day] = issue.created_on.day if sched.anchor_day != issue.created_on.day
+          case interval
+          when 'stündlich'
+            minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            updates[:anchor_minute] = minute if sched.anchor_minute != minute
+          when 'täglich'
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time'])
+            updates[:anchor_hour] = h if sched.anchor_hour != h
+            updates[:anchor_minute] = m if sched.anchor_minute != m
+          when 'wöchentlich'
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
+            updates[:anchor_hour] = h if sched.anchor_hour != h
+            updates[:anchor_minute] = m if sched.anchor_minute != m
+            wday = issue.created_on.to_date.cwday
+            updates[:anchor_day] = wday if sched.anchor_day != wday
+          when 'monatlich'
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+            updates[:anchor_hour] = h if sched.anchor_hour != h
+            updates[:anchor_minute] = m if sched.anchor_minute != m
+            day = issue.created_on.day
+            updates[:anchor_day] = day if sched.anchor_day != day
+            backup = (day == 31 ? 30 : (day == 30 ? 29 : nil))
+            updates[:backup_anchor_day] = backup if sched.backup_anchor_day != backup
+          end
+          updates[:active] = true if sched.active != true
           if updates.empty?
             Rails.logger.info("[IssueRepeat] backfill: no changes for issue=#{issue.id} sched=#{sched.id}")
           else
@@ -108,7 +160,27 @@ namespace :redmine_issue_repeat do
           end
         else
           if next_run
-            sched_new = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: issue.id, interval: interval, next_run_at: next_run, anchor_day: issue.created_on.day)
+            anchor_hour = nil
+            anchor_minute = nil
+            anchor_day = nil
+            backup_anchor_day = nil
+            case interval
+            when 'stündlich'
+              anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            when 'täglich'
+              h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time'])
+              anchor_hour, anchor_minute = h, m
+            when 'wöchentlich'
+              h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
+              anchor_hour, anchor_minute = h, m
+              anchor_day = issue.created_on.to_date.cwday
+            when 'monatlich'
+              h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+              anchor_hour, anchor_minute = h, m
+              anchor_day = issue.created_on.day
+              backup_anchor_day = (anchor_day == 31 ? 30 : (anchor_day == 30 ? 29 : nil))
+            end
+            sched_new = RedmineIssueRepeat::IssueRepeatSchedule.create!(issue_id: issue.id, interval: interval, next_run_at: next_run, anchor_day: anchor_day, anchor_hour: anchor_hour, anchor_minute: anchor_minute, backup_anchor_day: backup_anchor_day, active: true, times_run: 0)
             Rails.logger.info("[IssueRepeat] backfill: created sched=#{sched_new.id} issue=#{issue.id} interval=#{interval} next_run_at=#{next_run}")
           else
             Rails.logger.info("[IssueRepeat] backfill: no next_run computed for issue=#{issue.id} interval=#{interval}")
@@ -118,4 +190,3 @@ namespace :redmine_issue_repeat do
     end
   end
 end
-

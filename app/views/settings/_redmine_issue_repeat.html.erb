@@ -34,19 +34,24 @@
       <th>Betreff</th>
       <th>Intervall</th>
       <th>Nächste Erstellung</th>
+      <th>Aktiv</th>
+      <th>Times Run</th>
       <th>Aktion</th>
     </tr>
   </thead>
   <tbody>
   <% issues.each do |issue| %>
     <% interval = RedmineIssueRepeat::Scheduler.interval_value(issue) %>
-    <% next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current) %>
+    <% sched = RedmineIssueRepeat::IssueRepeatSchedule.where(issue_id: issue.id).first %>
+    <% next_run = (sched && sched.next_run_at) || RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current) %>
     <tr>
       <td><%= link_to issue.id, issue_path(issue) %></td>
       <td><%= issue.project.try(:name) %></td>
       <td><%= h(issue.subject) %></td>
       <td><%= h(interval) %></td>
       <td><%= next_run ? format_time(next_run) : '-' %></td>
+      <td><%= sched ? (sched.active ? 'ja' : 'nein') : 'ja' %></td>
+      <td><%= sched ? sched.times_run : 0 %></td>
       <td>
         <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(issue), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
       </td>
@@ -54,4 +59,3 @@
   <% end %>
   </tbody>
 </table>
-
