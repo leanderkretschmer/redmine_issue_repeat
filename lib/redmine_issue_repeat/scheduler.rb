@@ -48,8 +48,9 @@ module RedmineIssueRepeat
     end
 
     def interval_value(issue)
-      vals = CustomValue.where(customized_type: 'Issue', customized_id: issue.id).pluck(:value)
-      v = vals.find { |x| x.present? }
+      cf = IssueCustomField.find_by(name: 'Intervall')
+      return nil unless cf
+      v = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf.id).limit(1).pluck(:value).first
       val = v && v.to_s.downcase
       case val
       when 'woechentlich' then 'wöchentlich'
@@ -60,17 +61,8 @@ module RedmineIssueRepeat
     end
 
     def interval_cf_id(issue)
-      CustomValue.where(customized_type: 'Issue', customized_id: issue.id).each do |cv|
-        val = cv.value.to_s.downcase
-        norm = case val
-               when 'woechentlich' then 'wöchentlich'
-               when 'taeglich' then 'täglich'
-               when 'stundlich' then 'stündlich'
-               else val
-               end
-        return cv.custom_field_id if %w[stündlich täglich wöchentlich monatlich].include?(norm)
-      end
-      nil
+      cf = IssueCustomField.find_by(name: 'Intervall')
+      cf&.id
     end
 
     def next_month_date(from_date, anchor_day)

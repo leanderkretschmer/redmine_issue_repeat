@@ -1,10 +1,12 @@
 module RedmineIssueRepeat
   module IssuePatch
     def self.apply
-      Issue.include InstanceMethods unless Issue < InstanceMethods
+      Rails.logger.info("[IssueRepeat] apply: patching Issue")
+      Issue.include InstanceMethods unless Issue.included_modules.include?(InstanceMethods)
       Issue.class_eval do
         after_commit :repeat_issue_after_create, on: :create
         after_commit :update_repeat_schedule_after_update, on: :update
+        Rails.logger.info("[IssueRepeat] apply: callbacks registered on Issue")
       end
     end
 
