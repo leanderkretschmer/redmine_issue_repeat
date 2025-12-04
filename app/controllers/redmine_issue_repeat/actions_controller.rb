@@ -1,4 +1,4 @@
-ginalclass RedmineIssueRepeat::ActionsController < ApplicationController
+class RedmineIssueRepeat::ActionsController < ApplicationController
   def repeat_now
     issue = Issue.find_by(id: params[:id])
     return redirect_to settings_path unless issue
@@ -61,4 +61,3 @@ ginalclass RedmineIssueRepeat::ActionsController < ApplicationController
     redirect_to settings_path
   end
 end
-

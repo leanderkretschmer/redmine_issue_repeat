@@ -109,6 +109,9 @@ module RedmineIssueRepeat
         new_issue.due_date = issue.due_date
         new_issue.estimated_hours = issue.estimated_hours
         new_issue.start_date = Scheduler.start_date_for(interval, sched.next_run_at)
+        if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
+          new_issue.due_date = new_issue.start_date
+        end
         new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
         # Copy custom fields, but clear Intervall to avoid loops
         cf_values = {}

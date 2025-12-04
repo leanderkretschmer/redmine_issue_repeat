@@ -37,6 +37,9 @@ module RedmineIssueRepeat
           new_issue.due_date = due_date
           new_issue.estimated_hours = estimated_hours
           new_issue.start_date = compute_start_date(delta)
+          if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
+            new_issue.due_date = new_issue.start_date
+          end
           new_issue.status = default_issue_status
           # Copy custom fields except Intervall
           cf_values = {}
