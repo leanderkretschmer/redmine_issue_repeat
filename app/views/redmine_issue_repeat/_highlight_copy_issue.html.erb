@@ -1,0 +1,7 @@
+<% issue = defined?(issue) ? issue : (@issue if defined?(@issue)) %>
+<% if issue && RedmineIssueRepeat::IssueUi.copy_issue?(issue) %>
+  <style>
+    body.controller-issues.action-show #content { background-color: #fffbe6; transition: background-color 0.2s ease-in-out; }
+  </style>
+<% end %>
+
