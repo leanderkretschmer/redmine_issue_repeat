@@ -16,6 +16,14 @@
   <%= number_field_tag 'settings[hourly_minute]', (settings['hourly_minute'] || '0'), in: 0..59 %>
 </p>
 
+<p>
+  <label>Hintergrundfarbe für Kopie-Tickets (CSS-Farbe oder Hex)</label>
+  <%= text_field_tag 'settings[copy_issue_bg_color]', (settings['copy_issue_bg_color'] || '#fffbe6'), placeholder: '#fffbe6' %>
+  <br/>
+  <em>Beispiel: #ffd966, rgb(255,217,102) oder "lightyellow"</em>
+  
+</p>
+
 <h3>Wiederholungs-Zeitpläne</h3>
 <table class="list">
   <thead>

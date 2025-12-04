@@ -12,6 +12,7 @@ Redmine::Plugin.register :redmine_issue_repeat do
     'daily_time' => '09:00',
     'weekly_time' => '09:00',
     'monthly_time' => '09:00',
-    'hourly_minute' => '0'
+    'hourly_minute' => '0',
+    'copy_issue_bg_color' => '#fffbe6'
   }, partial: 'settings/redmine_issue_repeat'
 end

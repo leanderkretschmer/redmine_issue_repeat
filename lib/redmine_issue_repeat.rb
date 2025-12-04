@@ -12,8 +12,8 @@ end
 module RedmineIssueRepeat
   module StatusSetup
     def self.ensure_intervall_status
-      status = IssueStatus.find_by(name: 'Ticket geschlossen')
-      IssueStatus.create!(name: 'Ticket geschlossen', is_closed: true) unless status
+      status = IssueStatus.find_by(name: 'Intervall')
+      IssueStatus.create!(name: 'Intervall', is_closed: true) unless status
     end
   end
 end

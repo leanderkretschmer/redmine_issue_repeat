@@ -1,7 +1,13 @@
 <% issue = defined?(issue) ? issue : (@issue if defined?(@issue)) %>
 <% if issue && RedmineIssueRepeat::IssueUi.copy_issue?(issue) %>
+  <% settings = Setting.plugin_redmine_issue_repeat || {} %>
+  <% color = (settings['copy_issue_bg_color'].presence || '#fffbe6') %>
   <style>
-    body.controller-issues.action-show #content { background-color: #fffbe6; transition: background-color 0.2s ease-in-out; }
+    body.controller-issues.action-show #content .issue.details,
+    body.controller-issues.action-show #content .issue .attributes,
+    body.controller-issues.action-show #content .issue div.issue,
+    body.controller-issues.action-show #content .box.issue,
+    body.controller-issues.action-show #content .issue { background-color: <%= color %> !important; }
+    body.controller-issues.action-show #content .issue { border-left: 6px solid rgba(0,0,0,0.1); }
   </style>
 <% end %>
-

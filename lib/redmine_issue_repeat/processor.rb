@@ -85,7 +85,7 @@ module RedmineIssueRepeat
 
     def process_due
       require_relative 'scheduler'
-      intervall_status_id = IssueStatus.where(name: 'Ticket geschlossen').pluck(:id).first
+      intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
       RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.current).where(active: true).find_each do |sched|
         issue = sched.issue
         unless issue && Scheduler.interval_value(issue)
