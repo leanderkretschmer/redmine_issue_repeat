@@ -102,11 +102,22 @@ module RedmineIssueRepeat
         new_issue.subject = issue.subject
         new_issue.description = issue.description
         new_issue.assigned_to = issue.assigned_to
+        new_issue.author = issue.author
+        new_issue.priority = issue.priority
+        new_issue.category = issue.category
+        new_issue.fixed_version = issue.fixed_version
+        new_issue.due_date = issue.due_date
         new_issue.estimated_hours = issue.estimated_hours
         new_issue.start_date = Scheduler.start_date_for(interval, sched.next_run_at)
         new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
+        # Copy custom fields, but clear Intervall to avoid loops
+        cf_values = {}
+        issue.custom_field_values.each do |cv|
+          cf_values[cv.custom_field_id] = cv.value
+        end
         cf_id = Scheduler.interval_cf_id(issue)
-        new_issue.custom_field_values = { cf_id => nil } if cf_id
+        cf_values[cf_id] = nil if cf_id
+        new_issue.custom_field_values = cf_values if cf_values.any?
 
         next_time = case interval
                     when 'stündlich'
@@ -138,11 +149,9 @@ module RedmineIssueRepeat
                       Time.new(d.year, d.month, day, h, m, 0, sched.next_run_at.utc_offset)
                     end
 
-        updated = RedmineIssueRepeat::IssueRepeatSchedule.where(id: sched.id).where('next_run_at <= ?', Time.current).update_all(next_run_at: next_time, times_run: (sched.times_run + 1))
-        next unless updated == 1
-
         if new_issue.save
           IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+          RedmineIssueRepeat::IssueRepeatSchedule.where(id: sched.id).update_all(next_run_at: next_time, times_run: (sched.times_run + 1))
         end
       end
     end

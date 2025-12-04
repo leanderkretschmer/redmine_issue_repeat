@@ -30,10 +30,21 @@ module RedmineIssueRepeat
           new_issue.subject = subject
           new_issue.description = description
           new_issue.assigned_to = assigned_to
+          new_issue.author = author
+          new_issue.priority = priority
+          new_issue.category = category
+          new_issue.fixed_version = fixed_version
+          new_issue.due_date = due_date
           new_issue.estimated_hours = estimated_hours
           new_issue.start_date = compute_start_date(delta)
           new_issue.status = default_issue_status
-          new_issue.custom_field_values = { cf.id => nil }
+          # Copy custom fields except Intervall
+          cf_values = {}
+          custom_field_values.each do |cv|
+            cf_values[cv.custom_field_id] = cv.value
+          end
+          cf_values[cf.id] = nil
+          new_issue.custom_field_values = cf_values if cf_values.any?
           if new_issue.save
             IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
           end
