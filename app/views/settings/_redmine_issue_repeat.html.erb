@@ -49,7 +49,7 @@
       <td><%= s.anchor_day %></td>
       <td><%= s.backup_anchor_day %></td>
       <td>
-        <%= button_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(s.issue_id), method: :post, data: { confirm: 'Sofort eine Kopie erstellen?' } %>
+        <%= link_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(s.issue_id), data: { confirm: 'Sofort eine Kopie erstellen?' } %>
       </td>
     </tr>
   <% end %>
