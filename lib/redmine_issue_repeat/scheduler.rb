@@ -196,6 +196,15 @@ module RedmineIssueRepeat
       cf&.id
     end
 
+    def interval_related_cf_ids
+      ids = []
+      ['Intervall', 'Intervall Uhrzeit', 'Intervall Wochentag', 'Intervall Monatstag', 'Intervall Cron Syntax'].each do |name|
+        cf = IssueCustomField.find_by(name: name)
+        ids << cf.id if cf
+      end
+      ids.compact
+    end
+
     def next_month_date(from_date, anchor_day)
       nm = from_date.next_month
       last = Date.civil(nm.year, nm.month, -1)

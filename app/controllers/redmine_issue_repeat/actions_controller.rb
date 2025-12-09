@@ -24,13 +24,13 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
     new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, now)
     new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
 
-    # Copy all custom fields except Intervall
+    # Copy all custom fields except all Intervall-related fields
     cf_values = {}
+    excluded_ids = RedmineIssueRepeat::Scheduler.interval_related_cf_ids
     issue.custom_field_values.each do |cv|
+      next if excluded_ids.include?(cv.custom_field_id)
       cf_values[cv.custom_field_id] = cv.value
     end
-    cf_id = RedmineIssueRepeat::Scheduler.interval_cf_id(issue)
-    cf_values[cf_id] = nil if cf_id
     new_issue.custom_field_values = cf_values if cf_values.any?
 
     next_time = case interval

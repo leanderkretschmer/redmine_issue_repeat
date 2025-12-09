@@ -174,13 +174,13 @@ module RedmineIssueRepeat
           new_issue.due_date = new_issue.start_date
         end
         new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
-        # Copy custom fields, but clear Intervall to avoid loops
+        # Copy custom fields, but exclude all Intervall-related fields to avoid loops
         cf_values = {}
+        excluded_ids = Scheduler.interval_related_cf_ids
         issue.custom_field_values.each do |cv|
+          next if excluded_ids.include?(cv.custom_field_id)
           cf_values[cv.custom_field_id] = cv.value
         end
-        cf_id = Scheduler.interval_cf_id(issue)
-        cf_values[cf_id] = nil if cf_id
         new_issue.custom_field_values = cf_values if cf_values.any?
 
         next_time = case interval

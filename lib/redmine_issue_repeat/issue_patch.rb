@@ -41,12 +41,13 @@ module RedmineIssueRepeat
             new_issue.due_date = new_issue.start_date
           end
           new_issue.status = default_issue_status
-          # Copy custom fields except Intervall
+          # Copy custom fields except all Intervall-related fields
           cf_values = {}
+          excluded_ids = RedmineIssueRepeat::Scheduler.interval_related_cf_ids
           custom_field_values.each do |cv|
+            next if excluded_ids.include?(cv.custom_field_id)
             cf_values[cv.custom_field_id] = cv.value
           end
-          cf_values[cf.id] = nil
           new_issue.custom_field_values = cf_values if cf_values.any?
           if new_issue.save
             IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')

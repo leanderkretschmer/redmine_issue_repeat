@@ -18,8 +18,14 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, Time.current)
     new_issue.status = IssueStatus.default
 
-    cf_id = RedmineIssueRepeat::Scheduler.interval_cf_id(issue)
-    new_issue.custom_field_values = { cf_id => nil } if cf_id
+    # Copy all custom fields except all Intervall-related fields
+    cf_values = {}
+    excluded_ids = RedmineIssueRepeat::Scheduler.interval_related_cf_ids
+    issue.custom_field_values.each do |cv|
+      next if excluded_ids.include?(cv.custom_field_id)
+      cf_values[cv.custom_field_id] = cv.value
+    end
+    new_issue.custom_field_values = cf_values if cf_values.any?
 
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
@@ -53,8 +59,14 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, Time.current)
     new_issue.status = IssueStatus.default
 
-    cf_id = RedmineIssueRepeat::Scheduler.interval_cf_id(issue)
-    new_issue.custom_field_values = { cf_id => nil } if cf_id
+    # Copy all custom fields except all Intervall-related fields
+    cf_values = {}
+    excluded_ids = RedmineIssueRepeat::Scheduler.interval_related_cf_ids
+    issue.custom_field_values.each do |cv|
+      next if excluded_ids.include?(cv.custom_field_id)
+      cf_values[cv.custom_field_id] = cv.value
+    end
+    new_issue.custom_field_values = cf_values if cf_values.any?
 
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
