@@ -7,9 +7,14 @@ module RedmineIssueRepeat
     end
 
     def parse_time(hhmm)
-      return [9, 0] if hhmm.nil? || hhmm !~ /^\d{1,2}:\d{2}$/
+      return [9, 0] if hhmm.nil? || hhmm.to_s.strip.empty?
+      # Validiere Format: HH:MM mit Stunden 0-23 und Minuten 0-59
+      return [9, 0] unless hhmm.to_s.strip =~ /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
       h, m = hhmm.split(':').map(&:to_i)
-      [h % 24, m % 60]
+      # Stelle sicher, dass Stunden und Minuten im gültigen Bereich sind
+      h = [[h, 0].max, 23].min
+      m = [[m, 0].max, 59].min
+      [h, m]
     end
 
     def custom_time_for_issue(issue)

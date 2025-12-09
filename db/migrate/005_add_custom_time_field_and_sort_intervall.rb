@@ -10,7 +10,7 @@ class AddCustomTimeFieldAndSortIntervall < ActiveRecord::Migration[6.1]
         visible: true,
         editable: true,
         default_value: '',
-        regexp: '^\\d{1,2}:\\d{2}$'
+        regexp: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
       )
       cf_time.trackers = Tracker.all
       cf_time.save
