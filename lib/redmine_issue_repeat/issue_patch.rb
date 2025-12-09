@@ -20,10 +20,13 @@ module RedmineIssueRepeat
                 when 'täglich' then 1
                 when 'woechentlich', 'wöchentlich' then 7
                 when 'monatlich' then :month
+                when 'custom'
+                  # Für Custom-Intervalle kein automatisches Kopieren beim Erstellen
+                  nil
                 else nil
                 end
 
-        if delta && interval != 'stündlich'
+        if delta && interval != 'stündlich' && interval != 'custom'
           new_issue = Issue.new
           new_issue.project = project
           new_issue.tracker = tracker
@@ -65,7 +68,15 @@ module RedmineIssueRepeat
           when 'stündlich'
             anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
           when 'täglich'
-            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+            custom_time = nil
+            if cf_time
+              cv = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf_time.id).limit(1).pluck(:value).first
+              custom_time = cv.presence
+            end
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['daily_time']
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
           when 'wöchentlich'
             h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
@@ -82,6 +93,12 @@ module RedmineIssueRepeat
                                 else
                                   nil
                                 end
+          when 'custom'
+            # Für Custom-Intervalle versuchen wir die Uhrzeit aus dem Custom-Feld zu extrahieren
+            # oder verwenden die Standard-Monats-Uhrzeit
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+            anchor_hour, anchor_minute = h, m
+            anchor_day = created_on.day
           end
 
           RedmineIssueRepeat::IssueRepeatSchedule.create!(

@@ -1,0 +1,78 @@
+<% 
+  issue = defined?(issue) ? issue : (@issue if defined?(@issue))
+  intervall_cf = IssueCustomField.find_by(name: 'Intervall')
+  time_cf = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+  return unless intervall_cf && time_cf
+  
+  intervall_cf_id = intervall_cf.id
+  time_cf_id = time_cf.id
+  current_intervall = issue&.custom_field_values&.find { |cv| cv.custom_field_id == intervall_cf_id }&.value
+  current_time = issue&.custom_field_values&.find { |cv| cv.custom_field_id == time_cf_id }&.value
+%>
+
+<script type="text/javascript">
+(function() {
+  function toggleTimeField() {
+    var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
+    var timeFieldRow = null;
+    
+    // Finde das Zeit-Feld-Element
+    var allRows = document.querySelectorAll('tr.issue_custom_field_<%= time_cf_id %>');
+    if (allRows.length > 0) {
+      timeFieldRow = allRows[0];
+    }
+    
+    if (!intervallField || !timeFieldRow) {
+      // Fallback: Suche nach dem Label
+      var labels = document.querySelectorAll('label');
+      labels.forEach(function(label) {
+        if (label.textContent && label.textContent.includes('Intervall Uhrzeit')) {
+          timeFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
+        }
+      });
+    }
+    
+    if (!intervallField || !timeFieldRow) return;
+    
+    function updateVisibility() {
+      var value = intervallField.value || '';
+      var normalizedValue = value.toLowerCase().trim();
+      if (normalizedValue === 'täglich') {
+        timeFieldRow.style.display = '';
+        // Stelle sicher, dass das Feld sichtbar ist
+        if (timeFieldRow.style.display === 'none') {
+          timeFieldRow.style.display = '';
+        }
+      } else {
+        timeFieldRow.style.display = 'none';
+      }
+    }
+    
+    // Initiale Sichtbarkeit setzen
+    updateVisibility();
+    
+    // Event Listener hinzufügen
+    intervallField.addEventListener('change', updateVisibility);
+    
+    // Für AJAX-Updates (wenn das Formular dynamisch aktualisiert wird)
+    if (typeof jQuery !== 'undefined') {
+      jQuery(document).on('change', 'select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]', updateVisibility);
+    }
+  }
+  
+  // Warte bis DOM bereit ist
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', toggleTimeField);
+  } else {
+    toggleTimeField();
+  }
+  
+  // Für AJAX-Updates
+  if (typeof jQuery !== 'undefined') {
+    jQuery(document).ajaxComplete(function() {
+      setTimeout(toggleTimeField, 100);
+    });
+  }
+})();
+</script>
+
