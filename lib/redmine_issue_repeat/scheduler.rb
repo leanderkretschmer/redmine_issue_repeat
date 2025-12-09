@@ -6,6 +6,22 @@ module RedmineIssueRepeat
       Setting.plugin_redmine_issue_repeat || {}
     end
 
+    def add_prefix_to_subject(subject)
+      return subject if subject.nil?
+      
+      plugin_settings = settings
+      add_prefix = plugin_settings['add_prefix_to_copied_issues'] == '1' || plugin_settings['add_prefix_to_copied_issues'] == true
+      return subject unless add_prefix
+      
+      prefix = plugin_settings['copied_issue_prefix'].to_s.strip
+      prefix = '➚' if prefix.empty?
+      
+      # Füge Prefix nur hinzu, wenn es noch nicht vorhanden ist
+      return subject if subject.start_with?("#{prefix} ")
+      
+      "#{prefix} #{subject}"
+    end
+
     def parse_time(hhmm)
       return [9, 0] if hhmm.nil? || hhmm.to_s.strip.empty?
       # Validiere Format: HH:MM mit Stunden 0-23 und Minuten 0-59

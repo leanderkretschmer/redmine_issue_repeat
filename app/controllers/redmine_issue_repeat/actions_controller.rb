@@ -12,7 +12,7 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
     new_issue = Issue.new
     new_issue.project = issue.project
     new_issue.tracker = issue.tracker
-    new_issue.subject = issue.subject
+    new_issue.subject = RedmineIssueRepeat::Scheduler.add_prefix_to_subject(issue.subject)
     new_issue.description = issue.description
     new_issue.assigned_to = issue.assigned_to
     new_issue.author = issue.author

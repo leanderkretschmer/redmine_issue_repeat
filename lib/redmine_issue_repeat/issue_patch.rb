@@ -30,7 +30,7 @@ module RedmineIssueRepeat
           new_issue = Issue.new
           new_issue.project = project
           new_issue.tracker = tracker
-          new_issue.subject = subject
+          new_issue.subject = RedmineIssueRepeat::Scheduler.add_prefix_to_subject(subject)
           new_issue.description = description
           new_issue.assigned_to = assigned_to
           new_issue.author = author
