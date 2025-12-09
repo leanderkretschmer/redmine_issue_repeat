@@ -2,15 +2,16 @@
   issue = defined?(issue) ? issue : (@issue if defined?(@issue))
   intervall_cf = IssueCustomField.find_by(name: 'Intervall')
   time_cf = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
-  cron_cf = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
-  return unless intervall_cf && time_cf && cron_cf
+  weekday_cf = IssueCustomField.find_by(name: 'Intervall Wochentag')
+  monthday_cf = IssueCustomField.find_by(name: 'Intervall Monatstag')
+  return unless intervall_cf && time_cf
   
   intervall_cf_id = intervall_cf.id
   time_cf_id = time_cf.id
-  cron_cf_id = cron_cf.id
+  weekday_cf_id = weekday_cf&.id
+  monthday_cf_id = monthday_cf&.id
   current_intervall = issue&.custom_field_values&.find { |cv| cv.custom_field_id == intervall_cf_id }&.value
   current_time = issue&.custom_field_values&.find { |cv| cv.custom_field_id == time_cf_id }&.value
-  current_cron = issue&.custom_field_values&.find { |cv| cv.custom_field_id == cron_cf_id }&.value
 %>
 
 <script type="text/javascript">
@@ -18,9 +19,9 @@
   function toggleTimeField() {
     var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
     var timeFieldRow = null;
-    var cronFieldRow = null;
+    var weekdayFieldRow = null;
+    var monthdayFieldRow = null;
     var timeInput = null;
-    var cronInput = null;
     
     // Finde das Zeit-Feld-Element
     var allRows = document.querySelectorAll('tr.issue_custom_field_<%= time_cf_id %>');
@@ -28,39 +29,55 @@
       timeFieldRow = allRows[0];
     }
     
-    // Finde das Cron-Feld-Element
-    var cronRows = document.querySelectorAll('tr.issue_custom_field_<%= cron_cf_id %>');
-    if (cronRows.length > 0) {
-      cronFieldRow = cronRows[0];
+    // Finde das Wochentag-Feld-Element
+    <% if weekday_cf_id %>
+    var weekdayRows = document.querySelectorAll('tr.issue_custom_field_<%= weekday_cf_id %>');
+    if (weekdayRows.length > 0) {
+      weekdayFieldRow = weekdayRows[0];
     }
+    <% end %>
+    
+    // Finde das Monatstag-Feld-Element
+    <% if monthday_cf_id %>
+    var monthdayRows = document.querySelectorAll('tr.issue_custom_field_<%= monthday_cf_id %>');
+    if (monthdayRows.length > 0) {
+      monthdayFieldRow = monthdayRows[0];
+    }
+    <% end %>
     
     if (!intervallField) return;
     
-    if (!timeFieldRow || !cronFieldRow) {
-      // Fallback: Suche nach den Labels
+    if (!timeFieldRow) {
+      // Fallback: Suche nach dem Label
       var labels = document.querySelectorAll('label');
       labels.forEach(function(label) {
         if (label.textContent && label.textContent.includes('Intervall Uhrzeit')) {
           timeFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
         }
-        if (label.textContent && label.textContent.includes('Intervall Cron Syntax')) {
-          cronFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
+        <% if weekday_cf_id %>
+        if (label.textContent && label.textContent.includes('Intervall Wochentag')) {
+          weekdayFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
         }
+        <% end %>
+        <% if monthday_cf_id %>
+        if (label.textContent && label.textContent.includes('Intervall Monatstag')) {
+          monthdayFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
+        }
+        <% end %>
       });
     }
     
-    if (!timeFieldRow || !cronFieldRow) return;
+    if (!timeFieldRow) return;
     
     // Finde die Input-Felder
     timeInput = timeFieldRow.querySelector('input[type="text"], input[type="time"], input[name*="[custom_field_values][<%= time_cf_id %>]"]');
-    cronInput = cronFieldRow.querySelector('input[type="text"], input[name*="[custom_field_values][<%= cron_cf_id %>]"]');
     
     function formatTimeInput(input) {
       if (!input) return;
       
       // Setze Platzhalter und Typ
       if (input.type === 'text') {
-        input.placeholder = 'HH:MM (z.B. 14:30)';
+        input.placeholder = 'HH:MM';
         input.pattern = '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$';
         input.maxLength = 5;
         
@@ -94,35 +111,6 @@
       }
     }
     
-    function formatCronInput(input) {
-      if (!input) return;
-      
-      if (input.type === 'text') {
-        input.placeholder = 'minute hour day month weekday (z.B. 0 3 * * *)';
-        input.title = 'Cron-Syntax: minute hour day month weekday\nBeispiele:\n0 3 * * * = täglich um 3:00\n0 3 * * 1 = jeden Montag um 3:00\n0 */2 * * * = alle 2 Stunden\n0 3 1 * * = jeden Monat am 1. Tag um 3:00';
-        
-        // Validierung beim Verlassen des Feldes
-        input.addEventListener('blur', function(e) {
-          var value = e.target.value.trim();
-          if (value && !validateCronSyntax(value)) {
-            alert('Ungültige Cron-Syntax. Format: minute hour day month weekday\nBeispiele:\n0 3 * * * = täglich um 3:00\n0 3 * * 1 = jeden Montag um 3:00');
-          }
-        });
-      }
-    }
-    
-    function validateCronSyntax(cron) {
-      // Einfache Validierung: 5 Teile getrennt durch Leerzeichen
-      var parts = cron.trim().split(/\s+/);
-      if (parts.length !== 5) return false;
-      
-      // Validiere jeden Teil
-      var validPattern = /^(\*|\d+(-\d+)?(,\d+(-\d+)?)*|\*\/\d+)$/;
-      return parts.every(function(part) {
-        return validPattern.test(part);
-      });
-    }
-    
     function updateVisibility() {
       var value = intervallField.value || '';
       var normalizedValue = value.toLowerCase().trim();
@@ -133,8 +121,11 @@
                           normalizedValue === 'wöchentlich' || 
                           normalizedValue === 'monatlich';
       
-      // Zeige Cron-Feld bei custom
-      var showCronField = normalizedValue === 'custom';
+      // Zeige Wochentag-Feld bei wöchentlich
+      var showWeekdayField = normalizedValue === 'wöchentlich';
+      
+      // Zeige Monatstag-Feld bei monatlich
+      var showMonthdayField = normalizedValue === 'monatlich';
       
       // Uhrzeit-Feld
       if (showTimeField) {
@@ -152,21 +143,27 @@
         timeFieldRow.style.display = 'none';
       }
       
-      // Cron-Feld
-      if (showCronField) {
-        cronFieldRow.style.display = '';
-        // Formatiere das Input-Feld
-        if (cronInput) {
-          formatCronInput(cronInput);
+      // Wochentag-Feld
+      <% if weekday_cf_id %>
+      if (weekdayFieldRow) {
+        if (showWeekdayField) {
+          weekdayFieldRow.style.display = '';
         } else {
-          setTimeout(function() {
-            cronInput = cronFieldRow.querySelector('input[type="text"], input[name*="[custom_field_values][<%= cron_cf_id %>]"]');
-            if (cronInput) formatCronInput(cronInput);
-          }, 100);
+          weekdayFieldRow.style.display = 'none';
         }
-      } else {
-        cronFieldRow.style.display = 'none';
       }
+      <% end %>
+      
+      // Monatstag-Feld
+      <% if monthday_cf_id %>
+      if (monthdayFieldRow) {
+        if (showMonthdayField) {
+          monthdayFieldRow.style.display = '';
+        } else {
+          monthdayFieldRow.style.display = 'none';
+        }
+      }
+      <% end %>
     }
     
     // Initiale Sichtbarkeit setzen

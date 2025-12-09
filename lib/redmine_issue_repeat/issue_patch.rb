@@ -20,13 +20,10 @@ module RedmineIssueRepeat
                 when 'täglich' then 1
                 when 'woechentlich', 'wöchentlich' then 7
                 when 'monatlich' then :month
-                when 'custom'
-                  # Für Custom-Intervalle kein automatisches Kopieren beim Erstellen
-                  nil
                 else nil
                 end
 
-        if delta && interval != 'stündlich' && interval != 'custom'
+        if delta && interval != 'stündlich'
           new_issue = Issue.new
           new_issue.project = project
           new_issue.tracker = tracker
@@ -101,7 +98,13 @@ module RedmineIssueRepeat
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
             h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
-            anchor_day = created_on.to_date.cwday # Montag=1 ... Sonntag=7
+            # Verwende ausgewählten Wochentag falls vorhanden, sonst Tag der Erstellung
+            weekday_name = RedmineIssueRepeat::Scheduler.weekday_for_issue(self)
+            if weekday_name
+              anchor_day = RedmineIssueRepeat::Scheduler.weekday_name_to_number(weekday_name)
+            else
+              anchor_day = created_on.to_date.cwday # Montag=1 ... Sonntag=7
+            end
           when 'monatlich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
             cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
@@ -113,7 +116,15 @@ module RedmineIssueRepeat
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
             h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
-            anchor_day = created_on.day
+            # Verwende Monatstag-Option falls vorhanden
+            monthday_option = RedmineIssueRepeat::Scheduler.monthday_option_for_issue(self)
+            if monthday_option
+              # Berechne Tag basierend auf Option (für ersten Monat)
+              next_month_date = created_on.to_date.next_month
+              anchor_day = RedmineIssueRepeat::Scheduler.calculate_month_day(monthday_option, created_on.day, next_month_date)
+            else
+              anchor_day = created_on.day
+            end
             backup_anchor_day = if anchor_day == 31
                                   30
                                 elsif anchor_day == 30
@@ -121,12 +132,6 @@ module RedmineIssueRepeat
                                 else
                                   nil
                                 end
-          when 'custom'
-            # Für Custom-Intervalle versuchen wir die Uhrzeit aus dem Custom-Feld zu extrahieren
-            # oder verwenden die Standard-Monats-Uhrzeit
-            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
-            anchor_hour, anchor_minute = h, m
-            anchor_day = created_on.day
           end
 
           RedmineIssueRepeat::IssueRepeatSchedule.create!(

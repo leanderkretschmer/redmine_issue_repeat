@@ -36,27 +36,48 @@ module RedmineIssueRepeat
         Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Uhrzeit'")
       end
 
-      # Stelle sicher, dass das Cron Syntax Feld existiert
-      cf_cron = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
-      unless cf_cron
-        cf_cron = IssueCustomField.new(
-          name: 'Intervall Cron Syntax',
-          field_format: 'string',
+      # Stelle sicher, dass das Wochentag-Feld existiert
+      cf_weekday = IssueCustomField.find_by(name: 'Intervall Wochentag')
+      unless cf_weekday
+        cf_weekday = IssueCustomField.new(
+          name: 'Intervall Wochentag',
+          field_format: 'list',
+          possible_values: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
           is_required: false,
           visible: true,
           editable: true,
           default_value: ''
         )
-        cf_cron.trackers = Tracker.all
-        cf_cron.save
-        Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Cron Syntax'")
+        cf_weekday.trackers = Tracker.all
+        cf_weekday.save
+        Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Wochentag'")
       end
 
-      # Stelle sicher, dass das Intervall Feld die korrekte Sortierung hat
+      # Stelle sicher, dass das Monatstag-Feld existiert
+      cf_monthday = IssueCustomField.find_by(name: 'Intervall Monatstag')
+      unless cf_monthday
+        cf_monthday = IssueCustomField.new(
+          name: 'Intervall Monatstag',
+          field_format: 'list',
+          possible_values: ['Anfang des Monats (1.)', 'Ende des Monats (29-31)', 'Mitte des Monats', 'Aktuelles Datum'],
+          is_required: false,
+          visible: true,
+          editable: true,
+          default_value: ''
+        )
+        cf_monthday.trackers = Tracker.all
+        cf_monthday.save
+        Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Monatstag'")
+      end
+
+      # Stelle sicher, dass das Intervall Feld die korrekte Sortierung hat (ohne custom)
       cf = IssueCustomField.find_by(name: 'Intervall')
       if cf
-        expected_values = ['stündlich', 'täglich', 'wöchentlich', 'monatlich', 'custom']
-        if cf.possible_values != expected_values
+        expected_values = ['stündlich', 'täglich', 'wöchentlich', 'monatlich']
+        current_values = cf.possible_values || []
+        # Entferne 'custom' falls vorhanden
+        new_values = current_values.reject { |v| v == 'custom' }
+        if new_values != current_values || new_values != expected_values
           cf.possible_values = expected_values
           cf.save
           Rails.logger.info("[IssueRepeat] Updated Custom Field 'Intervall' with correct sorting")

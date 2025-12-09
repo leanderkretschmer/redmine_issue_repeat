@@ -46,20 +46,29 @@ module RedmineIssueRepeat
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
             h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
-            anchor_day = issue.created_on.to_date.cwday
+            # Verwende ausgewählten Wochentag falls vorhanden, sonst Tag der Erstellung
+            weekday_name = Scheduler.weekday_for_issue(issue)
+            if weekday_name
+              anchor_day = Scheduler.weekday_name_to_number(weekday_name)
+            else
+              anchor_day = issue.created_on.to_date.cwday
+            end
           when 'monatlich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
             custom_time = Scheduler.custom_time_for_issue(issue)
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
             h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
-            anchor_day = issue.created_on.day
+            # Verwende Monatstag-Option falls vorhanden
+            monthday_option = Scheduler.monthday_option_for_issue(issue)
+            if monthday_option
+              # Berechne Tag basierend auf Option (für ersten Monat)
+              next_month_date = issue.created_on.to_date.next_month
+              anchor_day = Scheduler.calculate_month_day(monthday_option, issue.created_on.day, next_month_date)
+            else
+              anchor_day = issue.created_on.day
+            end
             backup_anchor_day = (anchor_day == 31 ? 30 : (anchor_day == 30 ? 29 : nil))
-          when 'custom'
-            # Für Custom-Intervalle verwenden wir Standard-Monats-Uhrzeit
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
-            anchor_hour, anchor_minute = h, m
-            anchor_day = issue.created_on.day
           end
           if next_run
             sched.interval = interval
@@ -100,7 +109,13 @@ module RedmineIssueRepeat
             h, m = Scheduler.parse_time(time_str)
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
-            wday = issue.created_on.to_date.cwday
+            # Verwende ausgewählten Wochentag falls vorhanden, sonst Tag der Erstellung
+            weekday_name = Scheduler.weekday_for_issue(issue)
+            if weekday_name
+              wday = Scheduler.weekday_name_to_number(weekday_name)
+            else
+              wday = issue.created_on.to_date.cwday
+            end
             updates[:anchor_day] = wday if sched.anchor_day != wday
           when 'monatlich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
@@ -109,15 +124,18 @@ module RedmineIssueRepeat
             h, m = Scheduler.parse_time(time_str)
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
-            day = issue.created_on.day
+            # Verwende Monatstag-Option falls vorhanden
+            monthday_option = Scheduler.monthday_option_for_issue(issue)
+            if monthday_option
+              # Berechne Tag basierend auf Option (für nächsten Monat)
+              next_month_date = Time.current.to_date.next_month
+              day = Scheduler.calculate_month_day(monthday_option, issue.created_on.day, next_month_date)
+            else
+              day = issue.created_on.day
+            end
             updates[:anchor_day] = day if sched.anchor_day != day
             backup = (day == 31 ? 30 : (day == 30 ? 29 : nil))
             updates[:backup_anchor_day] = backup if sched.backup_anchor_day != backup
-          when 'custom'
-            # Für Custom-Intervalle verwenden wir Standard-Monats-Uhrzeit
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
-            updates[:anchor_hour] = h if sched.anchor_hour != h
-            updates[:anchor_minute] = m if sched.anchor_minute != m
           end
           updates[:active] = true if sched.active != true
           sched.update!(updates) if updates.any?
@@ -193,7 +211,6 @@ module RedmineIssueRepeat
                       end
                       Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'wöchentlich'
-                      d = (sched.next_run_at + 7.days).to_date
                       # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
                       h = sched.anchor_hour
                       m = sched.anchor_minute
@@ -202,17 +219,42 @@ module RedmineIssueRepeat
                         time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
                         h, m = Scheduler.parse_time(time_str)
                       end
+                      # Verwende gespeicherten Wochentag oder ausgewählten Wochentag
+                      target_weekday = sched.anchor_day
+                      if target_weekday.nil?
+                        weekday_name = Scheduler.weekday_for_issue(issue)
+                        if weekday_name
+                          target_weekday = Scheduler.weekday_name_to_number(weekday_name)
+                        else
+                          target_weekday = issue.created_on.to_date.cwday
+                        end
+                      end
+                      # Finde nächsten passenden Wochentag
+                      current_weekday = sched.next_run_at.to_date.cwday
+                      days_ahead = target_weekday - current_weekday
+                      days_ahead += 7 if days_ahead <= 0
+                      d = sched.next_run_at.to_date + days_ahead
                       Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'monatlich'
-                      anchor_day = sched.anchor_day || issue.created_on.day
-                      d = Scheduler.next_month_date(sched.next_run_at.to_date, anchor_day)
-                      last = Date.civil(d.year, d.month, -1)
-                      day = [anchor_day, last.day].min
-                      if anchor_day == 31 && last.day == 30 && sched.backup_anchor_day == 30
-                        day = 30
-                      elsif anchor_day >= 30 && last.day < anchor_day && sched.backup_anchor_day && sched.backup_anchor_day <= last.day
-                        day = sched.backup_anchor_day
+                      # Berechne nächsten Monat
+                      d = sched.next_run_at.to_date.next_month
+                      
+                      # Verwende Monatstag-Option falls vorhanden
+                      monthday_option = Scheduler.monthday_option_for_issue(issue)
+                      if monthday_option
+                        day = Scheduler.calculate_month_day(monthday_option, issue.created_on.day, d)
+                      else
+                        # Fallback: Gespeicherter Tag oder Tag der Erstellung
+                        anchor_day = sched.anchor_day || issue.created_on.day
+                        last = Date.civil(d.year, d.month, -1)
+                        day = [anchor_day, last.day].min
+                        if anchor_day == 31 && last.day == 30 && sched.backup_anchor_day == 30
+                          day = 30
+                        elsif anchor_day >= 30 && last.day < anchor_day && sched.backup_anchor_day && sched.backup_anchor_day <= last.day
+                          day = sched.backup_anchor_day
+                        end
                       end
+                      
                       # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
                       h = sched.anchor_hour
                       m = sched.anchor_minute
@@ -222,9 +264,6 @@ module RedmineIssueRepeat
                         h, m = Scheduler.parse_time(time_str)
                       end
                       Time.new(d.year, d.month, day, h, m, 0, sched.next_run_at.utc_offset)
-                    when 'custom'
-                      # Verwende Scheduler.next_run_for für Custom-Intervalle
-                      Scheduler.next_run_for(issue, base_time: sched.next_run_at)
                     else
                       nil
                     end

@@ -39,40 +39,77 @@ namespace :redmine_issue_repeat do
       puts "Custom Field 'Intervall Uhrzeit' erstellt (ID: #{cf_time.id})."
     end
 
-    # Erstelle oder aktualisiere Cron Syntax Feld
-    cf_cron = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
-    if cf_cron
-      puts "Custom Field 'Intervall Cron Syntax' existiert bereits, aktualisiere..."
-      cf_cron.field_format = 'string'
-      cf_cron.is_required = false
-      cf_cron.visible = true
-      cf_cron.editable = true
-      cf_cron.default_value = ''
-      cf_cron.trackers = Tracker.all unless cf_cron.trackers.any?
-      cf_cron.save!
-      puts "Custom Field 'Intervall Cron Syntax' aktualisiert."
+    # Erstelle oder aktualisiere Wochentag-Feld
+    cf_weekday = IssueCustomField.find_by(name: 'Intervall Wochentag')
+    if cf_weekday
+      puts "Custom Field 'Intervall Wochentag' existiert bereits, aktualisiere..."
+      cf_weekday.field_format = 'list'
+      cf_weekday.possible_values = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+      cf_weekday.is_required = false
+      cf_weekday.visible = true
+      cf_weekday.editable = true
+      cf_weekday.default_value = ''
+      cf_weekday.trackers = Tracker.all unless cf_weekday.trackers.any?
+      cf_weekday.save!
+      puts "Custom Field 'Intervall Wochentag' aktualisiert."
     else
-      puts "Erstelle Custom Field 'Intervall Cron Syntax'..."
-      cf_cron = IssueCustomField.new(
-        name: 'Intervall Cron Syntax',
-        field_format: 'string',
+      puts "Erstelle Custom Field 'Intervall Wochentag'..."
+      cf_weekday = IssueCustomField.new(
+        name: 'Intervall Wochentag',
+        field_format: 'list',
+        possible_values: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
         is_required: false,
         visible: true,
         editable: true,
         default_value: ''
       )
-      cf_cron.trackers = Tracker.all
-      cf_cron.save!
-      puts "Custom Field 'Intervall Cron Syntax' erstellt (ID: #{cf_cron.id})."
+      cf_weekday.trackers = Tracker.all
+      cf_weekday.save!
+      puts "Custom Field 'Intervall Wochentag' erstellt (ID: #{cf_weekday.id})."
     end
 
-    # Aktualisiere Intervall-Feld mit korrekter Sortierung
+    # Erstelle oder aktualisiere Monatstag-Feld
+    cf_monthday = IssueCustomField.find_by(name: 'Intervall Monatstag')
+    if cf_monthday
+      puts "Custom Field 'Intervall Monatstag' existiert bereits, aktualisiere..."
+      cf_monthday.field_format = 'list'
+      cf_monthday.possible_values = ['Anfang des Monats (1.)', 'Ende des Monats (29-31)', 'Mitte des Monats', 'Aktuelles Datum']
+      cf_monthday.is_required = false
+      cf_monthday.visible = true
+      cf_monthday.editable = true
+      cf_monthday.default_value = ''
+      cf_monthday.trackers = Tracker.all unless cf_monthday.trackers.any?
+      cf_monthday.save!
+      puts "Custom Field 'Intervall Monatstag' aktualisiert."
+    else
+      puts "Erstelle Custom Field 'Intervall Monatstag'..."
+      cf_monthday = IssueCustomField.new(
+        name: 'Intervall Monatstag',
+        field_format: 'list',
+        possible_values: ['Anfang des Monats (1.)', 'Ende des Monats (29-31)', 'Mitte des Monats', 'Aktuelles Datum'],
+        is_required: false,
+        visible: true,
+        editable: true,
+        default_value: ''
+      )
+      cf_monthday.trackers = Tracker.all
+      cf_monthday.save!
+      puts "Custom Field 'Intervall Monatstag' erstellt (ID: #{cf_monthday.id})."
+    end
+
+    # Aktualisiere Intervall-Feld mit korrekter Sortierung (ohne custom)
     cf = IssueCustomField.find_by(name: 'Intervall')
     if cf
       puts "Aktualisiere Custom Field 'Intervall' mit korrekter Sortierung..."
-      cf.possible_values = ['stündlich', 'täglich', 'wöchentlich', 'monatlich', 'custom']
-      cf.save!
-      puts "Custom Field 'Intervall' aktualisiert."
+      current_values = cf.possible_values || []
+      new_values = current_values.reject { |v| v == 'custom' }
+      if new_values != ['stündlich', 'täglich', 'wöchentlich', 'monatlich']
+        cf.possible_values = ['stündlich', 'täglich', 'wöchentlich', 'monatlich']
+        cf.save!
+        puts "Custom Field 'Intervall' aktualisiert (custom entfernt)."
+      else
+        puts "Custom Field 'Intervall' bereits korrekt konfiguriert."
+      end
     else
       puts "WARNUNG: Custom Field 'Intervall' nicht gefunden!"
     end
