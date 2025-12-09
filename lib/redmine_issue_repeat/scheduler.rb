@@ -24,6 +24,127 @@ module RedmineIssueRepeat
       cv.presence
     end
 
+    def cron_syntax_for_issue(issue)
+      cf_cron = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
+      return nil unless cf_cron
+      cv = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf_cron.id).limit(1).pluck(:value).first
+      cv.presence
+    end
+
+    def parse_cron_field(cron_str)
+      return nil unless cron_str
+      parts = cron_str.strip.split(/\s+/)
+      return nil unless parts.length == 5
+      parts.map { |p| p.strip }
+    end
+
+    def matches_cron_field(value, field)
+      return true if field == '*'
+      return false if value.nil?
+      
+      # Einzelner Wert
+      return value == field.to_i if field =~ /^\d+$/
+      
+      # Schritt: */5
+      if field =~ /^\*\/(\d+)$/
+        step = $1.to_i
+        return value % step == 0
+      end
+      
+      # Bereich: 1-5
+      if field =~ /^(\d+)-(\d+)$/
+        min, max = $1.to_i, $2.to_i
+        return value >= min && value <= max
+      end
+      
+      # Bereich mit Schritt: 1-10/2
+      if field =~ /^(\d+)-(\d+)\/(\d+)$/
+        min, max, step = $1.to_i, $2.to_i, $3.to_i
+        return value >= min && value <= max && (value - min) % step == 0
+      end
+      
+      # Liste: 1,3,5
+      if field.include?(',')
+        parts = field.split(',')
+        parts.each do |part|
+          return true if matches_cron_field(value, part.strip)
+        end
+        return false
+      end
+      
+      false
+    end
+
+    def next_cron_time(cron_parts, base_time)
+      minute_part, hour_part, day_part, month_part, weekday_part = cron_parts
+      
+      # Starte eine Minute nach base_time, um sicherzustellen, dass wir in der Zukunft sind
+      current = base_time + 60
+      max_iterations = 10000 # Verhindere Endlosschleifen
+      iteration = 0
+      
+      loop do
+        iteration += 1
+        return nil if iteration > max_iterations
+        
+        # Prüfe Monat zuerst (größte Einheit)
+        unless matches_cron_field(current.month, month_part)
+          # Gehe zum ersten Tag des nächsten passenden Monats
+          next_month = current.month + 1
+          next_year = current.year
+          if next_month > 12
+            next_month = 1
+            next_year += 1
+          end
+          # Finde den ersten passenden Monat
+          while next_month <= 12 && !matches_cron_field(next_month, month_part)
+            next_month += 1
+            if next_month > 12
+              next_month = 1
+              next_year += 1
+            end
+          end
+          current = Time.new(next_year, next_month, 1, 0, 0, 0, current.utc_offset)
+          next
+        end
+        
+        # Prüfe Tag des Monats
+        unless matches_cron_field(current.day, day_part)
+          current = Time.new(current.year, current.month, current.day + 1, 0, 0, 0, current.utc_offset)
+          next
+        end
+        
+        # Prüfe Wochentag
+        # Cron: 0=Sonntag, 1=Montag, ..., 6=Samstag
+        # Redmine cwday: 1=Montag, ..., 7=Sonntag
+        # Konvertiere zu Cron-Format: Sonntag=0, Montag=1, etc.
+        cron_weekday = current.cwday == 7 ? 0 : current.cwday
+        unless matches_cron_field(cron_weekday, weekday_part)
+          # Wenn Wochentag nicht passt, gehe zum nächsten Tag
+          current = Time.new(current.year, current.month, current.day + 1, 0, 0, 0, current.utc_offset)
+          next
+        end
+        
+        # Prüfe Stunde
+        unless matches_cron_field(current.hour, hour_part)
+          current = Time.new(current.year, current.month, current.day, current.hour + 1, 0, 0, current.utc_offset)
+          next
+        end
+        
+        # Prüfe Minute
+        unless matches_cron_field(current.min, minute_part)
+          current = Time.new(current.year, current.month, current.day, current.hour, current.min + 1, 0, current.utc_offset)
+          next
+        end
+        
+        # Wenn wir hier ankommen, haben wir einen passenden Zeitpunkt gefunden
+        return current if current > base_time
+        
+        # Sonst zur nächsten Minute gehen
+        current = Time.new(current.year, current.month, current.day, current.hour, current.min + 1, 0, current.utc_offset)
+      end
+    end
+
     def next_run_for(issue, base_time: Time.current)
       val = interval_value(issue)
       Rails.logger.info("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
@@ -36,7 +157,14 @@ module RedmineIssueRepeat
       
       case val
       when 'stündlich'
+        # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
+        custom_time = custom_time_for_issue(issue)
+        if custom_time
+          _, m = parse_time(custom_time)
+          minute = m % 60
+        else
         minute = (settings['hourly_minute'] || '0').to_i % 60
+        end
         t = base_time + 3600
         run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
@@ -51,13 +179,19 @@ module RedmineIssueRepeat
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
         run
       when 'wöchentlich'
-        h, m = parse_time(settings['weekly_time'])
+        # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
+        custom_time = custom_time_for_issue(issue)
+        time_str = custom_time || settings['weekly_time']
+        h, m = parse_time(time_str)
         d = base_time.to_date + 7
         run = Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
         run
       when 'monatlich'
-        h, m = parse_time(settings['monthly_time'])
+        # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
+        custom_time = custom_time_for_issue(issue)
+        time_str = custom_time || settings['monthly_time']
+        h, m = parse_time(time_str)
         anchor_day = issue.created_on.day
         next_date = next_month_date(base_time.to_date, anchor_day)
         run = Time.new(next_date.year, next_date.month, next_date.day, h, m, 0, base_time.utc_offset)
@@ -69,6 +203,17 @@ module RedmineIssueRepeat
     end
 
     def parse_custom_interval(issue, base_time)
+      # Zuerst prüfe ob Cron-Syntax vorhanden ist
+      cron_str = cron_syntax_for_issue(issue)
+      if cron_str && !cron_str.strip.empty?
+        cron_parts = parse_cron_field(cron_str)
+        if cron_parts
+          next_time = next_cron_time(cron_parts, base_time)
+          return next_time if next_time
+        end
+      end
+      
+      # Fallback auf alte Text-Syntax
       cf = IssueCustomField.find_by(name: 'Intervall')
       return nil unless cf
       cv = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf.id).limit(1).pluck(:value).first

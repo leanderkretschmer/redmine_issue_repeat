@@ -66,7 +66,19 @@ module RedmineIssueRepeat
 
           case iv
           when 'stündlich'
-            anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
+            cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+            if cf_time
+              cv = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf_time.id).limit(1).pluck(:value).first
+              if cv.presence
+                _, m = RedmineIssueRepeat::Scheduler.parse_time(cv)
+                anchor_minute = m
+              else
+                anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+              end
+            else
+              anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            end
           when 'täglich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
             cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
@@ -79,11 +91,27 @@ module RedmineIssueRepeat
             h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
           when 'wöchentlich'
-            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+            custom_time = nil
+            if cf_time
+              cv = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf_time.id).limit(1).pluck(:value).first
+              custom_time = cv.presence
+            end
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
             anchor_day = created_on.to_date.cwday # Montag=1 ... Sonntag=7
           when 'monatlich'
-            h, m = RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+            custom_time = nil
+            if cf_time
+              cv = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf_time.id).limit(1).pluck(:value).first
+              custom_time = cv.presence
+            end
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
+            h, m = RedmineIssueRepeat::Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
             anchor_day = created_on.day
             backup_anchor_day = if anchor_day == 31

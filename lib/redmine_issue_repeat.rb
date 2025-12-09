@@ -36,6 +36,22 @@ module RedmineIssueRepeat
         Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Uhrzeit'")
       end
 
+      # Stelle sicher, dass das Cron Syntax Feld existiert
+      cf_cron = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
+      unless cf_cron
+        cf_cron = IssueCustomField.new(
+          name: 'Intervall Cron Syntax',
+          field_format: 'string',
+          is_required: false,
+          visible: true,
+          editable: true,
+          default_value: ''
+        )
+        cf_cron.trackers = Tracker.all
+        cf_cron.save
+        Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Cron Syntax'")
+      end
+
       # Stelle sicher, dass das Intervall Feld die korrekte Sortierung hat
       cf = IssueCustomField.find_by(name: 'Intervall')
       if cf

@@ -39,6 +39,33 @@ namespace :redmine_issue_repeat do
       puts "Custom Field 'Intervall Uhrzeit' erstellt (ID: #{cf_time.id})."
     end
 
+    # Erstelle oder aktualisiere Cron Syntax Feld
+    cf_cron = IssueCustomField.find_by(name: 'Intervall Cron Syntax')
+    if cf_cron
+      puts "Custom Field 'Intervall Cron Syntax' existiert bereits, aktualisiere..."
+      cf_cron.field_format = 'string'
+      cf_cron.is_required = false
+      cf_cron.visible = true
+      cf_cron.editable = true
+      cf_cron.default_value = ''
+      cf_cron.trackers = Tracker.all unless cf_cron.trackers.any?
+      cf_cron.save!
+      puts "Custom Field 'Intervall Cron Syntax' aktualisiert."
+    else
+      puts "Erstelle Custom Field 'Intervall Cron Syntax'..."
+      cf_cron = IssueCustomField.new(
+        name: 'Intervall Cron Syntax',
+        field_format: 'string',
+        is_required: false,
+        visible: true,
+        editable: true,
+        default_value: ''
+      )
+      cf_cron.trackers = Tracker.all
+      cf_cron.save!
+      puts "Custom Field 'Intervall Cron Syntax' erstellt (ID: #{cf_cron.id})."
+    end
+
     # Aktualisiere Intervall-Feld mit korrekter Sortierung
     cf = IssueCustomField.find_by(name: 'Intervall')
     if cf

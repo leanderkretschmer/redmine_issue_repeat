@@ -26,7 +26,14 @@ module RedmineIssueRepeat
           backup_anchor_day = nil
           case interval
           when 'stündlich'
-            anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            if custom_time
+              _, m = Scheduler.parse_time(custom_time)
+              anchor_minute = m
+            else
+              anchor_minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            end
           when 'täglich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
             custom_time = Scheduler.custom_time_for_issue(issue)
@@ -34,11 +41,17 @@ module RedmineIssueRepeat
             h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
           when 'wöchentlich'
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+            h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
             anchor_day = issue.created_on.to_date.cwday
           when 'monatlich'
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
+            h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
             anchor_day = issue.created_on.day
             backup_anchor_day = (anchor_day == 31 ? 30 : (anchor_day == 30 ? 29 : nil))
@@ -64,7 +77,14 @@ module RedmineIssueRepeat
           updates[:interval] = interval if sched.interval != interval
           case interval
           when 'stündlich'
-            minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            if custom_time
+              _, m = Scheduler.parse_time(custom_time)
+              minute = m
+            else
+              minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+            end
             updates[:anchor_minute] = minute if sched.anchor_minute != minute
           when 'täglich'
             # Verwende pro-Ticket-Uhrzeit falls vorhanden
@@ -74,13 +94,19 @@ module RedmineIssueRepeat
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
           when 'wöchentlich'
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+            h, m = Scheduler.parse_time(time_str)
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
             wday = issue.created_on.to_date.cwday
             updates[:anchor_day] = wday if sched.anchor_day != wday
           when 'monatlich'
-            h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+            # Verwende pro-Ticket-Uhrzeit falls vorhanden
+            custom_time = Scheduler.custom_time_for_issue(issue)
+            time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
+            h, m = Scheduler.parse_time(time_str)
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
             day = issue.created_on.day
@@ -142,11 +168,22 @@ module RedmineIssueRepeat
         next_time = case interval
                     when 'stündlich'
                       t = sched.next_run_at + 1.hour
-                      minute = (sched.anchor_minute || (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i) % 60
+                      # Verwende gespeicherte Anchor-Minute oder pro-Ticket-Uhrzeit oder Standard
+                      if sched.anchor_minute
+                        minute = sched.anchor_minute % 60
+                      else
+                        custom_time = Scheduler.custom_time_for_issue(issue)
+                        if custom_time
+                          _, m = Scheduler.parse_time(custom_time)
+                          minute = m % 60
+                        else
+                          minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i % 60
+                        end
+                      end
                       Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
                     when 'täglich'
                       d = (sched.next_run_at + 1.day).to_date
-                      # Verwende gespeicherte Anchor-Werte oder Standard
+                      # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
                       h = sched.anchor_hour
                       m = sched.anchor_minute
                       if h.nil? || m.nil?
@@ -157,8 +194,14 @@ module RedmineIssueRepeat
                       Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'wöchentlich'
                       d = (sched.next_run_at + 7.days).to_date
-                      h = sched.anchor_hour || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).first
-                      m = sched.anchor_minute || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).last
+                      # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
+                      h = sched.anchor_hour
+                      m = sched.anchor_minute
+                      if h.nil? || m.nil?
+                        custom_time = Scheduler.custom_time_for_issue(issue)
+                        time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+                        h, m = Scheduler.parse_time(time_str)
+                      end
                       Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'monatlich'
                       anchor_day = sched.anchor_day || issue.created_on.day
@@ -170,8 +213,14 @@ module RedmineIssueRepeat
                       elsif anchor_day >= 30 && last.day < anchor_day && sched.backup_anchor_day && sched.backup_anchor_day <= last.day
                         day = sched.backup_anchor_day
                       end
-                      h = sched.anchor_hour || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).first
-                      m = sched.anchor_minute || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).last
+                      # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
+                      h = sched.anchor_hour
+                      m = sched.anchor_minute
+                      if h.nil? || m.nil?
+                        custom_time = Scheduler.custom_time_for_issue(issue)
+                        time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
+                        h, m = Scheduler.parse_time(time_str)
+                      end
                       Time.new(d.year, d.month, day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'custom'
                       # Verwende Scheduler.next_run_for für Custom-Intervalle
