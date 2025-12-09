@@ -6,6 +6,53 @@ namespace :redmine_issue_repeat do
     RedmineIssueRepeat::Processor.run_once
   end
 
+  desc 'Erstelle oder aktualisiere Custom Fields für Intervall und Intervall Uhrzeit'
+  task setup_fields: :environment do
+    puts "Erstelle/aktualisiere Custom Fields..."
+    
+    # Erstelle oder aktualisiere Intervall Uhrzeit Feld
+    cf_time = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
+    if cf_time
+      puts "Custom Field 'Intervall Uhrzeit' existiert bereits, aktualisiere..."
+      cf_time.field_format = 'string'
+      cf_time.is_required = false
+      cf_time.visible = true
+      cf_time.editable = true
+      cf_time.default_value = ''
+      cf_time.regexp = '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+      cf_time.trackers = Tracker.all unless cf_time.trackers.any?
+      cf_time.save!
+      puts "Custom Field 'Intervall Uhrzeit' aktualisiert."
+    else
+      puts "Erstelle Custom Field 'Intervall Uhrzeit'..."
+      cf_time = IssueCustomField.new(
+        name: 'Intervall Uhrzeit',
+        field_format: 'string',
+        is_required: false,
+        visible: true,
+        editable: true,
+        default_value: '',
+        regexp: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+      )
+      cf_time.trackers = Tracker.all
+      cf_time.save!
+      puts "Custom Field 'Intervall Uhrzeit' erstellt (ID: #{cf_time.id})."
+    end
+
+    # Aktualisiere Intervall-Feld mit korrekter Sortierung
+    cf = IssueCustomField.find_by(name: 'Intervall')
+    if cf
+      puts "Aktualisiere Custom Field 'Intervall' mit korrekter Sortierung..."
+      cf.possible_values = ['stündlich', 'täglich', 'wöchentlich', 'monatlich', 'custom']
+      cf.save!
+      puts "Custom Field 'Intervall' aktualisiert."
+    else
+      puts "WARNUNG: Custom Field 'Intervall' nicht gefunden!"
+    end
+    
+    puts "Fertig!"
+  end
+
   desc 'Backfill schedules for issues with Intervall set'
   task backfill_schedules: :environment do
     require_relative '../redmine_issue_repeat/scheduler'
