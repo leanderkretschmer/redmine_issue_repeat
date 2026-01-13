@@ -57,28 +57,48 @@
       { value: 'Sonntag', label: 'Sonntag' }
     ];
     
+    // Verstecke das Select-Element komplett (aber nicht löschen, damit die Werte beim Submit übertragen werden)
+    selectElement.style.display = 'none';
+    selectElement.style.visibility = 'hidden';
+    selectElement.style.position = 'absolute';
+    selectElement.style.left = '-9999px';
+    
+    // Finde die td-Zelle und passe das Layout an
+    var tdCell = selectElement.closest('td');
+    if (tdCell) {
+      tdCell.style.verticalAlign = 'top';
+      tdCell.style.position = 'relative';
+    }
+    
     // Erstelle Container für Checkboxen
     var container = document.createElement('div');
     container.className = 'weekday-checkboxes-container';
     container.style.marginTop = '5px';
-    container.style.display = 'block';
-    container.style.lineHeight = '1.8';
+    container.style.marginBottom = '5px';
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '15px';
+    container.style.alignItems = 'center';
+    container.style.width = '100%';
     
     // Erstelle Checkboxen
     weekdays.forEach(function(weekday) {
       var checkboxWrapper = document.createElement('label');
-      checkboxWrapper.style.display = 'inline-block';
-      checkboxWrapper.style.marginRight = '20px';
-      checkboxWrapper.style.marginBottom = '0';
+      checkboxWrapper.style.display = 'flex';
+      checkboxWrapper.style.alignItems = 'center';
+      checkboxWrapper.style.marginRight = '15px';
+      checkboxWrapper.style.marginBottom = '5px';
       checkboxWrapper.style.cursor = 'pointer';
       checkboxWrapper.style.whiteSpace = 'nowrap';
-      checkboxWrapper.style.verticalAlign = 'middle';
+      checkboxWrapper.style.flexShrink = '0';
       
       var checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = weekday.value;
       checkbox.name = 'custom_field_values[<%= weekday_cf_id %>][]';
       checkbox.id = 'weekday_<%= weekday_cf_id %>_' + weekday.value.toLowerCase();
+      checkbox.style.marginRight = '5px';
+      checkbox.style.flexShrink = '0';
       
       // Prüfe ob dieser Wochentag bereits ausgewählt ist
       var options = selectElement.querySelectorAll('option');
@@ -90,24 +110,20 @@
       
       var label = document.createElement('span');
       label.textContent = weekday.label;
-      label.style.marginLeft = '5px';
+      label.style.userSelect = 'none';
       
       checkboxWrapper.appendChild(checkbox);
       checkboxWrapper.appendChild(label);
       container.appendChild(checkboxWrapper);
     });
     
-    // Verstecke das Select-Element (aber nicht löschen, damit die Werte beim Submit übertragen werden)
-    selectElement.style.display = 'none';
-    
-    // Finde die td-Zelle und passe das Layout an
-    var tdCell = selectElement.closest('td');
-    if (tdCell) {
-      tdCell.style.verticalAlign = 'top';
+    // Füge Container nach dem Select hinzu (oder ersetze den Select-Container)
+    var selectParent = selectElement.parentNode;
+    if (selectParent) {
+      selectParent.insertBefore(container, selectElement.nextSibling);
+    } else {
+      selectElement.parentNode.insertBefore(container, selectElement.nextSibling);
     }
-    
-    // Füge Container nach dem Select hinzu
-    selectElement.parentNode.insertBefore(container, selectElement.nextSibling);
     
     // Funktion zum Synchronisieren der Checkboxen mit dem Select
     function syncCheckboxesToSelect() {
