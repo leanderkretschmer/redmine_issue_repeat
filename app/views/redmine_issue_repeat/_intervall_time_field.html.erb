@@ -61,14 +61,18 @@
     var container = document.createElement('div');
     container.className = 'weekday-checkboxes-container';
     container.style.marginTop = '5px';
+    container.style.display = 'block';
+    container.style.lineHeight = '1.8';
     
     // Erstelle Checkboxen
     weekdays.forEach(function(weekday) {
       var checkboxWrapper = document.createElement('label');
       checkboxWrapper.style.display = 'inline-block';
-      checkboxWrapper.style.marginRight = '15px';
-      checkboxWrapper.style.marginBottom = '5px';
+      checkboxWrapper.style.marginRight = '20px';
+      checkboxWrapper.style.marginBottom = '0';
       checkboxWrapper.style.cursor = 'pointer';
+      checkboxWrapper.style.whiteSpace = 'nowrap';
+      checkboxWrapper.style.verticalAlign = 'middle';
       
       var checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
@@ -95,6 +99,12 @@
     
     // Verstecke das Select-Element (aber nicht löschen, damit die Werte beim Submit übertragen werden)
     selectElement.style.display = 'none';
+    
+    // Finde die td-Zelle und passe das Layout an
+    var tdCell = selectElement.closest('td');
+    if (tdCell) {
+      tdCell.style.verticalAlign = 'top';
+    }
     
     // Füge Container nach dem Select hinzu
     selectElement.parentNode.insertBefore(container, selectElement.nextSibling);
