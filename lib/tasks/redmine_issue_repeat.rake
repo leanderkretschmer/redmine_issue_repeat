@@ -49,9 +49,10 @@ namespace :redmine_issue_repeat do
       cf_weekday.visible = true
       cf_weekday.editable = true
       cf_weekday.default_value = ''
+      cf_weekday.multiple = true
       cf_weekday.trackers = Tracker.all unless cf_weekday.trackers.any?
       cf_weekday.save!
-      puts "Custom Field 'Intervall Wochentag' aktualisiert."
+      puts "Custom Field 'Intervall Wochentag' aktualisiert (Multi-Select aktiviert)."
     else
       puts "Erstelle Custom Field 'Intervall Wochentag'..."
       cf_weekday = IssueCustomField.new(
@@ -61,11 +62,12 @@ namespace :redmine_issue_repeat do
         is_required: false,
         visible: true,
         editable: true,
-        default_value: ''
+        default_value: '',
+        multiple: true
       )
       cf_weekday.trackers = Tracker.all
       cf_weekday.save!
-      puts "Custom Field 'Intervall Wochentag' erstellt (ID: #{cf_weekday.id})."
+      puts "Custom Field 'Intervall Wochentag' erstellt (ID: #{cf_weekday.id}, Multi-Select aktiviert)."
     end
 
     # Erstelle oder aktualisiere Monatstag-Feld

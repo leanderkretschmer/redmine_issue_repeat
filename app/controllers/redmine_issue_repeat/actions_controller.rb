@@ -44,9 +44,35 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
                   m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).last
                   Time.new(d.year, d.month, d.day, h, m, 0, now.utc_offset)
                 when 'wöchentlich'
-                  d = (now + 7.days).to_date
-                  h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).first
-                  m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).last
+                  # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
+                  custom_time = RedmineIssueRepeat::Scheduler.custom_time_for_issue(issue)
+                  time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+                  h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(time_str).first
+                  m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(time_str).last
+                  
+                  # Verwende ausgewählte Wochentage falls vorhanden
+                  weekday_names = RedmineIssueRepeat::Scheduler.weekdays_for_issue(issue)
+                  if weekday_names.any?
+                    # Konvertiere Wochentagsnamen zu Nummern
+                    target_weekdays = weekday_names.map { |name| RedmineIssueRepeat::Scheduler.weekday_name_to_number(name) }.compact
+                    if target_weekdays.any?
+                      # Finde nächsten passenden Wochentag
+                      current_weekday = now.to_date.cwday
+                      days_ahead = nil
+                      target_weekdays.sort.each do |target_weekday|
+                        diff = target_weekday - current_weekday
+                        diff += 7 if diff <= 0
+                        days_ahead = diff if days_ahead.nil? || diff < days_ahead
+                      end
+                      # Falls kein Tag in dieser Woche gefunden wurde, nimm den ersten der nächsten Woche
+                      days_ahead ||= (target_weekdays.min - current_weekday) + 7
+                      d = now.to_date + days_ahead
+                    else
+                      d = (now + 7.days).to_date
+                    end
+                  else
+                    d = (now + 7.days).to_date
+                  end
                   Time.new(d.year, d.month, d.day, h, m, 0, now.utc_offset)
                 when 'monatlich'
                   anchor_day = sched.anchor_day || issue.created_on.day

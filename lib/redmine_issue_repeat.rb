@@ -46,11 +46,19 @@ module RedmineIssueRepeat
           is_required: false,
           visible: true,
           editable: true,
-          default_value: ''
+          default_value: '',
+          multiple: true
         )
         cf_weekday.trackers = Tracker.all
         cf_weekday.save
         Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Wochentag'")
+      else
+        # Stelle sicher, dass multiple auf true gesetzt ist
+        if cf_weekday.multiple != true
+          cf_weekday.multiple = true
+          cf_weekday.save
+          Rails.logger.info("[IssueRepeat] Updated 'Intervall Wochentag' field to support multiple selection")
+        end
       end
 
       # Stelle sicher, dass das Monatstag-Feld existiert

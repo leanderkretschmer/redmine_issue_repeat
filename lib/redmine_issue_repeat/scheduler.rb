@@ -43,8 +43,19 @@ module RedmineIssueRepeat
     def weekday_for_issue(issue)
       cf_weekday = IssueCustomField.find_by(name: 'Intervall Wochentag')
       return nil unless cf_weekday
-      cv = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf_weekday.id).limit(1).pluck(:value).first
-      cv.presence
+      # Für Multi-Select-Felder gibt es mehrere CustomValue-Einträge
+      values = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf_weekday.id).pluck(:value).compact
+      return nil if values.empty?
+      # Wenn nur ein Wert vorhanden ist, gib ihn als String zurück (für Rückwärtskompatibilität)
+      # Wenn mehrere Werte vorhanden sind, gib ein Array zurück
+      values.length == 1 ? values.first : values
+    end
+
+    def weekdays_for_issue(issue)
+      result = weekday_for_issue(issue)
+      return [] unless result
+      # Konvertiere zu Array falls es ein String ist (für Rückwärtskompatibilität)
+      result.is_a?(Array) ? result : [result]
     end
 
     def monthday_option_for_issue(issue)
@@ -122,15 +133,23 @@ module RedmineIssueRepeat
         time_str = custom_time || settings['weekly_time']
         h, m = parse_time(time_str)
         
-        # Prüfe ob ein Wochentag ausgewählt wurde
-        weekday_name = weekday_for_issue(issue)
-        if weekday_name
-          target_weekday = weekday_name_to_number(weekday_name)
-          if target_weekday
+        # Prüfe ob Wochentage ausgewählt wurden
+        weekday_names = weekdays_for_issue(issue)
+        if weekday_names.any?
+          # Konvertiere Wochentagsnamen zu Nummern
+          target_weekdays = weekday_names.map { |name| weekday_name_to_number(name) }.compact
+          if target_weekdays.any?
             # Finde nächsten passenden Wochentag
             current_weekday = base_time.to_date.cwday
-            days_ahead = target_weekday - current_weekday
-            days_ahead += 7 if days_ahead <= 0 # Wenn der Tag bereits vorbei ist, nächste Woche
+            # Sortiere Wochentage und finde den nächsten
+            days_ahead = nil
+            target_weekdays.sort.each do |target_weekday|
+              diff = target_weekday - current_weekday
+              diff += 7 if diff <= 0 # Wenn der Tag bereits vorbei ist, nächste Woche
+              days_ahead = diff if days_ahead.nil? || diff < days_ahead
+            end
+            # Falls kein Tag in dieser Woche gefunden wurde, nimm den ersten der nächsten Woche
+            days_ahead ||= (target_weekdays.min - current_weekday) + 7
             d = base_time.to_date + days_ahead
           else
             d = base_time.to_date + 7

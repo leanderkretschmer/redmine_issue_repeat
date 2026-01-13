@@ -46,10 +46,11 @@ module RedmineIssueRepeat
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
             h, m = Scheduler.parse_time(time_str)
             anchor_hour, anchor_minute = h, m
-            # Verwende ausgewählten Wochentag falls vorhanden, sonst Tag der Erstellung
-            weekday_name = Scheduler.weekday_for_issue(issue)
-            if weekday_name
-              anchor_day = Scheduler.weekday_name_to_number(weekday_name)
+            # Verwende ausgewählte Wochentage falls vorhanden, sonst Tag der Erstellung
+            weekday_names = Scheduler.weekdays_for_issue(issue)
+            if weekday_names.any?
+              # Nimm den ersten Wochentag als anchor_day (wird für next_run verwendet)
+              anchor_day = Scheduler.weekday_name_to_number(weekday_names.first)
             else
               anchor_day = issue.created_on.to_date.cwday
             end
@@ -109,10 +110,11 @@ module RedmineIssueRepeat
             h, m = Scheduler.parse_time(time_str)
             updates[:anchor_hour] = h if sched.anchor_hour != h
             updates[:anchor_minute] = m if sched.anchor_minute != m
-            # Verwende ausgewählten Wochentag falls vorhanden, sonst Tag der Erstellung
-            weekday_name = Scheduler.weekday_for_issue(issue)
-            if weekday_name
-              wday = Scheduler.weekday_name_to_number(weekday_name)
+            # Verwende ausgewählte Wochentage falls vorhanden, sonst Tag der Erstellung
+            weekday_names = Scheduler.weekdays_for_issue(issue)
+            if weekday_names.any?
+              # Nimm den ersten Wochentag als anchor_day (wird für next_run verwendet)
+              wday = Scheduler.weekday_name_to_number(weekday_names.first)
             else
               wday = issue.created_on.to_date.cwday
             end
@@ -219,21 +221,34 @@ module RedmineIssueRepeat
                         time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
                         h, m = Scheduler.parse_time(time_str)
                       end
-                      # Verwende gespeicherten Wochentag oder ausgewählten Wochentag
-                      target_weekday = sched.anchor_day
-                      if target_weekday.nil?
-                        weekday_name = Scheduler.weekday_for_issue(issue)
-                        if weekday_name
-                          target_weekday = Scheduler.weekday_name_to_number(weekday_name)
+                      # Verwende ausgewählte Wochentage falls vorhanden
+                      weekday_names = Scheduler.weekdays_for_issue(issue)
+                      if weekday_names.any?
+                        # Konvertiere Wochentagsnamen zu Nummern
+                        target_weekdays = weekday_names.map { |name| Scheduler.weekday_name_to_number(name) }.compact
+                        if target_weekdays.any?
+                          # Finde nächsten passenden Wochentag
+                          current_weekday = sched.next_run_at.to_date.cwday
+                          days_ahead = nil
+                          target_weekdays.sort.each do |target_weekday|
+                            diff = target_weekday - current_weekday
+                            diff += 7 if diff <= 0
+                            days_ahead = diff if days_ahead.nil? || diff < days_ahead
+                          end
+                          # Falls kein Tag in dieser Woche gefunden wurde, nimm den ersten der nächsten Woche
+                          days_ahead ||= (target_weekdays.min - current_weekday) + 7
+                          d = sched.next_run_at.to_date + days_ahead
                         else
-                          target_weekday = issue.created_on.to_date.cwday
+                          d = sched.next_run_at.to_date + 7
                         end
+                      else
+                        # Fallback: Verwende gespeicherten Wochentag oder Tag der Erstellung
+                        target_weekday = sched.anchor_day || issue.created_on.to_date.cwday
+                        current_weekday = sched.next_run_at.to_date.cwday
+                        days_ahead = target_weekday - current_weekday
+                        days_ahead += 7 if days_ahead <= 0
+                        d = sched.next_run_at.to_date + days_ahead
                       end
-                      # Finde nächsten passenden Wochentag
-                      current_weekday = sched.next_run_at.to_date.cwday
-                      days_ahead = target_weekday - current_weekday
-                      days_ahead += 7 if days_ahead <= 0
-                      d = sched.next_run_at.to_date + days_ahead
                       Time.new(d.year, d.month, d.day, h, m, 0, sched.next_run_at.utc_offset)
                     when 'monatlich'
                       # Berechne nächsten Monat
