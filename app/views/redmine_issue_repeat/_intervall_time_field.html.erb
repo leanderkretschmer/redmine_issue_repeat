@@ -75,30 +75,23 @@
     container.className = 'weekday-checkboxes-container';
     container.style.marginTop = '5px';
     container.style.marginBottom = '5px';
-    container.style.display = 'flex';
-    container.style.flexWrap = 'wrap';
-    container.style.gap = '15px';
-    container.style.alignItems = 'center';
-    container.style.width = '100%';
+    container.style.display = 'block';
     
     // Erstelle Checkboxen
     weekdays.forEach(function(weekday) {
       var checkboxWrapper = document.createElement('label');
-      checkboxWrapper.style.display = 'flex';
-      checkboxWrapper.style.alignItems = 'center';
-      checkboxWrapper.style.marginRight = '15px';
-      checkboxWrapper.style.marginBottom = '5px';
+      checkboxWrapper.style.display = 'block';
+      checkboxWrapper.style.marginBottom = '8px';
       checkboxWrapper.style.cursor = 'pointer';
-      checkboxWrapper.style.whiteSpace = 'nowrap';
-      checkboxWrapper.style.flexShrink = '0';
+      checkboxWrapper.style.lineHeight = '1.5';
       
       var checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = weekday.value;
       checkbox.name = 'custom_field_values[<%= weekday_cf_id %>][]';
       checkbox.id = 'weekday_<%= weekday_cf_id %>_' + weekday.value.toLowerCase();
-      checkbox.style.marginRight = '5px';
-      checkbox.style.flexShrink = '0';
+      checkbox.style.marginRight = '8px';
+      checkbox.style.verticalAlign = 'middle';
       
       // Prüfe ob dieser Wochentag bereits ausgewählt ist
       var options = selectElement.querySelectorAll('option');
