@@ -1,0 +1,103 @@
+<% 
+  # View Hook für die Issue-Anzeige, um die Sortierung der Wochentage zu korrigieren
+  weekday_cf = IssueCustomField.find_by(name: 'Intervall Wochentag')
+  return unless weekday_cf
+  weekday_cf_id = weekday_cf.id
+%>
+
+<script type="text/javascript">
+(function() {
+  function fixWeekdayOrder() {
+    <% if weekday_cf_id %>
+    // Finde alle Zeilen mit dem Wochentag-Feld
+    var weekdayRows = document.querySelectorAll('tr.issue_custom_field_<%= weekday_cf_id %>');
+    weekdayRows.forEach(function(row) {
+      var valueCell = row.querySelector('td.value, td');
+      if (!valueCell) return;
+      
+      // Finde alle Custom Value Links oder Text-Elemente
+      var valueElements = valueCell.querySelectorAll('span.value, a.value, .value');
+      if (valueElements.length === 0) {
+        // Versuche Text direkt zu finden
+        var text = valueCell.textContent || valueCell.innerText;
+        if (!text || text.trim() === '') return;
+        
+        // Definiere die richtige Reihenfolge
+        var weekdayOrder = {
+          'Montag': 1,
+          'Dienstag': 2,
+          'Mittwoch': 3,
+          'Donnerstag': 4,
+          'Freitag': 5,
+          'Samstag': 6,
+          'Sonntag': 7
+        };
+        
+        // Parse die Werte aus dem Text
+        var values = text.split(',').map(function(v) { return v.trim(); });
+        if (values.length <= 1) return;
+        
+        // Sortiere die Werte
+        var sortedValues = values.sort(function(a, b) {
+          var orderA = weekdayOrder[a] || 999;
+          var orderB = weekdayOrder[b] || 999;
+          return orderA - orderB;
+        });
+        
+        // Aktualisiere den Text nur wenn sich die Reihenfolge geändert hat
+        var newText = sortedValues.join(', ');
+        if (newText !== text.trim()) {
+          valueCell.textContent = newText;
+        }
+      } else {
+        // Wenn es mehrere Elemente gibt, sortiere sie
+        var weekdayOrder = {
+          'Montag': 1,
+          'Dienstag': 2,
+          'Mittwoch': 3,
+          'Donnerstag': 4,
+          'Freitag': 5,
+          'Samstag': 6,
+          'Sonntag': 7
+        };
+        
+        var elementsArray = Array.from(valueElements);
+        var sortedElements = elementsArray.sort(function(a, b) {
+          var textA = (a.textContent || a.innerText || '').trim();
+          var textB = (b.textContent || b.innerText || '').trim();
+          var orderA = weekdayOrder[textA] || 999;
+          var orderB = weekdayOrder[textB] || 999;
+          return orderA - orderB;
+        });
+        
+        // Entferne alle Elemente und füge sie in der richtigen Reihenfolge wieder hinzu
+        sortedElements.forEach(function(elem) {
+          elem.remove();
+        });
+        
+        sortedElements.forEach(function(elem, index) {
+          if (index > 0) {
+            valueCell.appendChild(document.createTextNode(', '));
+          }
+          valueCell.appendChild(elem);
+        });
+      }
+    });
+    <% end %>
+  }
+  
+  // Warte bis DOM bereit ist
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', fixWeekdayOrder);
+  } else {
+    fixWeekdayOrder();
+  }
+  
+  // Für AJAX-Updates
+  if (typeof jQuery !== 'undefined') {
+    jQuery(document).ajaxComplete(function() {
+      setTimeout(fixWeekdayOrder, 100);
+    });
+  }
+})();
+</script>
