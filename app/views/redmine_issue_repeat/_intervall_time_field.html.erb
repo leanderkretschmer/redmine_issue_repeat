@@ -57,6 +57,47 @@
       { value: 'Sonntag', label: 'Sonntag' }
     ];
     
+    // Stelle sicher, dass die Optionen im Select-Element in der richtigen Reihenfolge sind
+    var currentOptions = Array.from(selectElement.options);
+    var correctOrder = weekdays.map(function(w) { return w.value; });
+    var needsReorder = false;
+    
+    // Prüfe ob die Reihenfolge falsch ist
+    if (currentOptions.length === correctOrder.length) {
+      for (var i = 0; i < currentOptions.length; i++) {
+        if (currentOptions[i].value !== correctOrder[i]) {
+          needsReorder = true;
+          break;
+        }
+      }
+    } else {
+      needsReorder = true;
+    }
+    
+    if (needsReorder) {
+      // Speichere welche Optionen ausgewählt waren
+      var selectedOptionValues = [];
+      currentOptions.forEach(function(opt) {
+        if (opt.selected) {
+          selectedOptionValues.push(opt.value);
+        }
+      });
+      
+      // Entferne alle Optionen
+      while (selectElement.options.length > 0) {
+        selectElement.remove(0);
+      }
+      
+      // Füge Optionen in der richtigen Reihenfolge wieder hinzu
+      weekdays.forEach(function(weekday) {
+        var option = document.createElement('option');
+        option.value = weekday.value;
+        option.textContent = weekday.label;
+        option.selected = selectedOptionValues.indexOf(weekday.value) !== -1;
+        selectElement.appendChild(option);
+      });
+    }
+    
     // Verstecke das Select-Element komplett (aber nicht löschen, damit die Werte beim Submit übertragen werden)
     selectElement.style.display = 'none';
     selectElement.style.visibility = 'hidden';
@@ -77,7 +118,7 @@
     container.style.marginBottom = '5px';
     container.style.display = 'block';
     container.style.textAlign = 'left';
-    container.style.paddingLeft = '20px';
+    container.style.paddingLeft = '40px';
     
     // Erstelle Checkboxen
     weekdays.forEach(function(weekday) {
@@ -127,19 +168,68 @@
     
     // Funktion zum Synchronisieren der Checkboxen mit dem Select
     function syncCheckboxesToSelect() {
-      var checkboxes = container.querySelectorAll('input[type="checkbox"]');
+      // Sammle ausgewählte Werte in der richtigen Reihenfolge (Montag bis Sonntag)
       var selectedValues = [];
-      checkboxes.forEach(function(checkbox) {
-        if (checkbox.checked) {
-          selectedValues.push(checkbox.value);
+      weekdays.forEach(function(weekday) {
+        var checkbox = container.querySelector('input[value="' + weekday.value + '"]');
+        if (checkbox && checkbox.checked) {
+          selectedValues.push(weekday.value);
         }
       });
       
-      // Aktualisiere Select-Optionen
+      // Aktualisiere Select-Optionen in der richtigen Reihenfolge
       var options = selectElement.querySelectorAll('option');
+      // Zuerst alle deselektieren
       options.forEach(function(option) {
-        option.selected = selectedValues.indexOf(option.value) !== -1;
+        option.selected = false;
       });
+      // Dann in der richtigen Reihenfolge selektieren
+      selectedValues.forEach(function(value) {
+        options.forEach(function(option) {
+          if (option.value === value) {
+            option.selected = true;
+          }
+        });
+      });
+      
+      // Stelle sicher, dass die Optionen im Select in der richtigen Reihenfolge sind
+      // Entferne alle Optionen und füge sie in der richtigen Reihenfolge wieder hinzu
+      var currentOptions = Array.from(selectElement.options);
+      var optionValues = currentOptions.map(function(opt) { return opt.value; });
+      
+      // Prüfe ob die Reihenfolge falsch ist
+      var correctOrder = weekdays.map(function(w) { return w.value; });
+      var needsReorder = false;
+      for (var i = 0; i < Math.min(currentOptions.length, correctOrder.length); i++) {
+        if (currentOptions[i].value !== correctOrder[i]) {
+          needsReorder = true;
+          break;
+        }
+      }
+      
+      if (needsReorder) {
+        // Speichere welche Optionen ausgewählt waren
+        var selectedOptionValues = [];
+        currentOptions.forEach(function(opt) {
+          if (opt.selected) {
+            selectedOptionValues.push(opt.value);
+          }
+        });
+        
+        // Entferne alle Optionen
+        while (selectElement.options.length > 0) {
+          selectElement.remove(0);
+        }
+        
+        // Füge Optionen in der richtigen Reihenfolge wieder hinzu
+        weekdays.forEach(function(weekday) {
+          var option = document.createElement('option');
+          option.value = weekday.value;
+          option.textContent = weekday.label;
+          option.selected = selectedOptionValues.indexOf(weekday.value) !== -1;
+          selectElement.appendChild(option);
+        });
+      }
       
       // Trigger Change-Event für Redmine
       if (typeof jQuery !== 'undefined') {
