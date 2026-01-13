@@ -16,10 +16,126 @@
 
 <script type="text/javascript">
 (function() {
+  var weekdayFieldRow = null;
+  
+  // Funktion zum Ersetzen des Multi-Select durch Checkboxen
+  function replaceWeekdaySelectWithCheckboxes() {
+    <% if weekday_cf_id %>
+    // Finde das Wochentag-Feld-Element falls noch nicht gefunden
+    if (!weekdayFieldRow) {
+      var weekdayRows = document.querySelectorAll('tr.issue_custom_field_<%= weekday_cf_id %>');
+      if (weekdayRows.length > 0) {
+        weekdayFieldRow = weekdayRows[0];
+      } else {
+        // Fallback: Suche nach dem Label
+        var labels = document.querySelectorAll('label');
+        labels.forEach(function(label) {
+          if (label.textContent && label.textContent.includes('Intervall Wochentag')) {
+            weekdayFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
+          }
+        });
+      }
+    }
+    
+    if (!weekdayFieldRow) return;
+    
+    // Prüfe ob bereits ersetzt wurde
+    if (weekdayFieldRow.querySelector('.weekday-checkboxes-container')) return;
+    
+    // Finde das Select-Element
+    var selectElement = weekdayFieldRow.querySelector('select[name*="[custom_field_values][<%= weekday_cf_id %>]"]');
+    if (!selectElement) return;
+    
+    // Wochentage in der richtigen Reihenfolge
+    var weekdays = [
+      { value: 'Montag', label: 'Montag' },
+      { value: 'Dienstag', label: 'Dienstag' },
+      { value: 'Mittwoch', label: 'Mittwoch' },
+      { value: 'Donnerstag', label: 'Donnerstag' },
+      { value: 'Freitag', label: 'Freitag' },
+      { value: 'Samstag', label: 'Samstag' },
+      { value: 'Sonntag', label: 'Sonntag' }
+    ];
+    
+    // Erstelle Container für Checkboxen
+    var container = document.createElement('div');
+    container.className = 'weekday-checkboxes-container';
+    container.style.marginTop = '5px';
+    
+    // Erstelle Checkboxen
+    weekdays.forEach(function(weekday) {
+      var checkboxWrapper = document.createElement('label');
+      checkboxWrapper.style.display = 'inline-block';
+      checkboxWrapper.style.marginRight = '15px';
+      checkboxWrapper.style.marginBottom = '5px';
+      checkboxWrapper.style.cursor = 'pointer';
+      
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = weekday.value;
+      checkbox.name = 'custom_field_values[<%= weekday_cf_id %>][]';
+      checkbox.id = 'weekday_<%= weekday_cf_id %>_' + weekday.value.toLowerCase();
+      
+      // Prüfe ob dieser Wochentag bereits ausgewählt ist
+      var options = selectElement.querySelectorAll('option');
+      options.forEach(function(option) {
+        if (option.value === weekday.value && option.selected) {
+          checkbox.checked = true;
+        }
+      });
+      
+      var label = document.createElement('span');
+      label.textContent = weekday.label;
+      label.style.marginLeft = '5px';
+      
+      checkboxWrapper.appendChild(checkbox);
+      checkboxWrapper.appendChild(label);
+      container.appendChild(checkboxWrapper);
+    });
+    
+    // Verstecke das Select-Element (aber nicht löschen, damit die Werte beim Submit übertragen werden)
+    selectElement.style.display = 'none';
+    
+    // Füge Container nach dem Select hinzu
+    selectElement.parentNode.insertBefore(container, selectElement.nextSibling);
+    
+    // Funktion zum Synchronisieren der Checkboxen mit dem Select
+    function syncCheckboxesToSelect() {
+      var checkboxes = container.querySelectorAll('input[type="checkbox"]');
+      var selectedValues = [];
+      checkboxes.forEach(function(checkbox) {
+        if (checkbox.checked) {
+          selectedValues.push(checkbox.value);
+        }
+      });
+      
+      // Aktualisiere Select-Optionen
+      var options = selectElement.querySelectorAll('option');
+      options.forEach(function(option) {
+        option.selected = selectedValues.indexOf(option.value) !== -1;
+      });
+      
+      // Trigger Change-Event für Redmine
+      if (typeof jQuery !== 'undefined') {
+        jQuery(selectElement).trigger('change');
+      } else {
+        var event = new Event('change', { bubbles: true });
+        selectElement.dispatchEvent(event);
+      }
+    }
+    
+    // Synchronisiere Checkboxen mit Select beim Ändern
+    container.addEventListener('change', function(e) {
+      if (e.target.type === 'checkbox') {
+        syncCheckboxesToSelect();
+      }
+    });
+    <% end %>
+  }
+  
   function toggleTimeField() {
     var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
     var timeFieldRow = null;
-    var weekdayFieldRow = null;
     var monthdayFieldRow = null;
     var timeInput = null;
     
@@ -148,6 +264,8 @@
       if (weekdayFieldRow) {
         if (showWeekdayField) {
           weekdayFieldRow.style.display = '';
+          // Ersetze Multi-Select durch Checkboxen
+          replaceWeekdaySelectWithCheckboxes();
         } else {
           weekdayFieldRow.style.display = 'none';
         }
@@ -180,15 +298,45 @@
   
   // Warte bis DOM bereit ist
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', toggleTimeField);
+    document.addEventListener('DOMContentLoaded', function() {
+      toggleTimeField();
+      // Prüfe initial ob wöchentlich bereits ausgewählt ist
+      setTimeout(function() {
+        <% if weekday_cf_id %>
+        var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
+        if (intervallField && intervallField.value && intervallField.value.toLowerCase().trim() === 'wöchentlich') {
+          replaceWeekdaySelectWithCheckboxes();
+        }
+        <% end %>
+      }, 200);
+    });
   } else {
     toggleTimeField();
+    // Prüfe initial ob wöchentlich bereits ausgewählt ist
+    setTimeout(function() {
+      <% if weekday_cf_id %>
+      var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
+      if (intervallField && intervallField.value && intervallField.value.toLowerCase().trim() === 'wöchentlich') {
+        replaceWeekdaySelectWithCheckboxes();
+      }
+      <% end %>
+    }, 200);
   }
   
   // Für AJAX-Updates
   if (typeof jQuery !== 'undefined') {
     jQuery(document).ajaxComplete(function() {
-      setTimeout(toggleTimeField, 100);
+      setTimeout(function() {
+        toggleTimeField();
+        <% if weekday_cf_id %>
+        // Prüfe nach AJAX-Update ob Checkboxen erstellt werden müssen
+        var intervallField = document.querySelector('select[name*="[custom_field_values][<%= intervall_cf_id %>]"], input[name*="[custom_field_values][<%= intervall_cf_id %>]"]');
+        if (intervallField && intervallField.value && intervallField.value.toLowerCase().trim() === 'wöchentlich') {
+          weekdayFieldRow = null; // Reset für erneutes Finden
+          replaceWeekdaySelectWithCheckboxes();
+        }
+        <% end %>
+      }, 100);
     });
   }
 })();
