@@ -4,11 +4,11 @@ require_relative 'redmine_issue_repeat/processor'
 require_relative 'redmine_issue_repeat/auto_runner'
 require_relative 'redmine_issue_repeat/issue_ui'
 require_relative 'redmine_issue_repeat/view_hooks'
-require_relative 'redmine_issue_repeat/application_helper_patch'
+require_relative 'redmine_issue_repeat/custom_value_patch'
 
 ActiveSupport::Reloader.to_prepare do
   RedmineIssueRepeat::IssuePatch.apply
-  RedmineIssueRepeat::ApplicationHelperPatch.apply
+  RedmineIssueRepeat::CustomValuePatch.apply
 end
 
 module RedmineIssueRepeat

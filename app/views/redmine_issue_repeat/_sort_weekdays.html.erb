@@ -1,0 +1,76 @@
+<% 
+  # View Hook für die Issue-Anzeige, um die Sortierung der Wochentage zu korrigieren
+  weekday_cf = IssueCustomField.find_by(name: 'Intervall Wochentag')
+  return unless weekday_cf
+  weekday_cf_id = weekday_cf.id
+%>
+
+<script type="text/javascript">
+(function() {
+  function sortWeekdays() {
+    <% if weekday_cf_id %>
+    // Definiere die richtige Reihenfolge
+    var weekdayOrder = {
+      'Montag': 1,
+      'Dienstag': 2,
+      'Mittwoch': 3,
+      'Donnerstag': 4,
+      'Freitag': 5,
+      'Samstag': 6,
+      'Sonntag': 7
+    };
+    
+    // Finde die Zeile mit dem Wochentag-Feld
+    var row = document.querySelector('tr.issue_custom_field_<%= weekday_cf_id %>');
+    if (!row) {
+      // Fallback: Suche nach Label
+      var labels = document.querySelectorAll('th, label');
+      labels.forEach(function(label) {
+        if (label.textContent && label.textContent.includes('Intervall Wochentag')) {
+          row = label.closest('tr');
+        }
+      });
+    }
+    
+    if (!row) return;
+    
+    var valueCell = row.querySelector('td.value, td:last-child');
+    if (!valueCell) return;
+    
+    var text = valueCell.textContent || valueCell.innerText || '';
+    if (!text || text.trim() === '') return;
+    
+    // Parse Werte
+    var values = text.split(',').map(function(v) { return v.trim(); }).filter(function(v) { return v; });
+    if (values.length <= 1) return;
+    
+    // Sortiere
+    var sorted = values.sort(function(a, b) {
+      return (weekdayOrder[a] || 999) - (weekdayOrder[b] || 999);
+    });
+    
+    // Aktualisiere nur wenn nötig
+    var newText = sorted.join(', ');
+    if (newText !== text.trim()) {
+      valueCell.textContent = newText;
+    }
+    <% end %>
+  }
+  
+  // Ausführen
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(sortWeekdays, 300);
+    });
+  } else {
+    setTimeout(sortWeekdays, 300);
+  }
+  
+  // Für AJAX
+  if (typeof jQuery !== 'undefined') {
+    jQuery(document).ajaxComplete(function() {
+      setTimeout(sortWeekdays, 300);
+    });
+  }
+})();
+</script>
