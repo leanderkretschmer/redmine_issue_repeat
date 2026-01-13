@@ -9,94 +9,129 @@
 (function() {
   function fixWeekdayOrder() {
     <% if weekday_cf_id %>
-    // Finde alle Zeilen mit dem Wochentag-Feld
-    var weekdayRows = document.querySelectorAll('tr.issue_custom_field_<%= weekday_cf_id %>');
-    weekdayRows.forEach(function(row) {
-      var valueCell = row.querySelector('td.value, td');
-      if (!valueCell) return;
-      
-      // Finde alle Custom Value Links oder Text-Elemente
-      var valueElements = valueCell.querySelectorAll('span.value, a.value, .value');
-      if (valueElements.length === 0) {
-        // Versuche Text direkt zu finden
-        var text = valueCell.textContent || valueCell.innerText;
-        if (!text || text.trim() === '') return;
-        
-        // Definiere die richtige Reihenfolge
-        var weekdayOrder = {
-          'Montag': 1,
-          'Dienstag': 2,
-          'Mittwoch': 3,
-          'Donnerstag': 4,
-          'Freitag': 5,
-          'Samstag': 6,
-          'Sonntag': 7
-        };
-        
-        // Parse die Werte aus dem Text
-        var values = text.split(',').map(function(v) { return v.trim(); });
-        if (values.length <= 1) return;
-        
-        // Sortiere die Werte
-        var sortedValues = values.sort(function(a, b) {
-          var orderA = weekdayOrder[a] || 999;
-          var orderB = weekdayOrder[b] || 999;
-          return orderA - orderB;
-        });
-        
-        // Aktualisiere den Text nur wenn sich die Reihenfolge geändert hat
-        var newText = sortedValues.join(', ');
-        if (newText !== text.trim()) {
-          valueCell.textContent = newText;
-        }
-      } else {
-        // Wenn es mehrere Elemente gibt, sortiere sie
-        var weekdayOrder = {
-          'Montag': 1,
-          'Dienstag': 2,
-          'Mittwoch': 3,
-          'Donnerstag': 4,
-          'Freitag': 5,
-          'Samstag': 6,
-          'Sonntag': 7
-        };
-        
-        var elementsArray = Array.from(valueElements);
-        var sortedElements = elementsArray.sort(function(a, b) {
-          var textA = (a.textContent || a.innerText || '').trim();
-          var textB = (b.textContent || b.innerText || '').trim();
-          var orderA = weekdayOrder[textA] || 999;
-          var orderB = weekdayOrder[textB] || 999;
-          return orderA - orderB;
-        });
-        
-        // Entferne alle Elemente und füge sie in der richtigen Reihenfolge wieder hinzu
-        sortedElements.forEach(function(elem) {
-          elem.remove();
-        });
-        
-        sortedElements.forEach(function(elem, index) {
-          if (index > 0) {
-            valueCell.appendChild(document.createTextNode(', '));
-          }
-          valueCell.appendChild(elem);
-        });
+    // Definiere die richtige Reihenfolge
+    var weekdayOrder = {
+      'Montag': 1,
+      'Dienstag': 2,
+      'Mittwoch': 3,
+      'Donnerstag': 4,
+      'Freitag': 5,
+      'Samstag': 6,
+      'Sonntag': 7
+    };
+    
+    // Finde alle Zeilen mit dem Wochentag-Feld - verschiedene Selektoren versuchen
+    var selectors = [
+      'tr.issue_custom_field_<%= weekday_cf_id %>',
+      'tr[id*="custom_field_<%= weekday_cf_id %>"]',
+      'tr:has(label:contains("Intervall Wochentag"))'
+    ];
+    
+    var weekdayRow = null;
+    for (var i = 0; i < selectors.length; i++) {
+      var rows = document.querySelectorAll(selectors[i]);
+      if (rows.length > 0) {
+        weekdayRow = rows[0];
+        break;
       }
+    }
+    
+    // Fallback: Suche nach dem Label-Text
+    if (!weekdayRow) {
+      var labels = document.querySelectorAll('label, th');
+      labels.forEach(function(label) {
+        if (label.textContent && label.textContent.includes('Intervall Wochentag')) {
+          weekdayRow = label.closest('tr');
+        }
+      });
+    }
+    
+    if (!weekdayRow) return;
+    
+    var valueCell = weekdayRow.querySelector('td.value, td:last-child, td:nth-child(2)');
+    if (!valueCell) return;
+    
+    // Hole den gesamten Textinhalt
+    var originalText = valueCell.textContent || valueCell.innerText || '';
+    if (!originalText || originalText.trim() === '') return;
+    
+    // Parse die Werte aus dem Text (kann durch Komma oder andere Trennzeichen getrennt sein)
+    var values = originalText.split(/[,;]/).map(function(v) { return v.trim(); }).filter(function(v) { return v.length > 0; });
+    if (values.length <= 1) return;
+    
+    // Sortiere die Werte nach der definierten Reihenfolge
+    var sortedValues = values.sort(function(a, b) {
+      var orderA = weekdayOrder[a] || 999;
+      var orderB = weekdayOrder[b] || 999;
+      return orderA - orderB;
     });
+    
+    // Erstelle den neuen Text
+    var newText = sortedValues.join(', ');
+    
+    // Aktualisiere nur wenn sich die Reihenfolge geändert hat
+    if (newText !== originalText.trim()) {
+      // Speichere alle HTML-Elemente falls vorhanden
+      var htmlElements = [];
+      var walker = document.createTreeWalker(valueCell, NodeFilter.SHOW_ELEMENT, null, false);
+      var node;
+      while (node = walker.nextNode()) {
+        if (node.tagName === 'A' || node.tagName === 'SPAN' || node.classList.contains('value')) {
+          htmlElements.push(node.cloneNode(true));
+        }
+      }
+      
+      // Lösche den Inhalt
+      valueCell.innerHTML = '';
+      
+      // Füge die sortierten Werte hinzu
+      sortedValues.forEach(function(value, index) {
+        if (index > 0) {
+          valueCell.appendChild(document.createTextNode(', '));
+        }
+        
+        // Versuche das entsprechende HTML-Element zu finden
+        var matchingElement = null;
+        htmlElements.forEach(function(elem) {
+          if ((elem.textContent || elem.innerText || '').trim() === value) {
+            matchingElement = elem;
+          }
+        });
+        
+        if (matchingElement) {
+          valueCell.appendChild(matchingElement);
+        } else {
+          valueCell.appendChild(document.createTextNode(value));
+        }
+      });
+    }
     <% end %>
   }
   
   // Warte bis DOM bereit ist
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', fixWeekdayOrder);
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(fixWeekdayOrder, 200);
+    });
   } else {
-    fixWeekdayOrder();
+    setTimeout(fixWeekdayOrder, 200);
   }
   
   // Für AJAX-Updates
   if (typeof jQuery !== 'undefined') {
     jQuery(document).ajaxComplete(function() {
+      setTimeout(fixWeekdayOrder, 200);
+    });
+  }
+  
+  // Auch nach MutationObserver für dynamische Änderungen
+  if (typeof MutationObserver !== 'undefined') {
+    var observer = new MutationObserver(function(mutations) {
       setTimeout(fixWeekdayOrder, 100);
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
     });
   }
 })();
