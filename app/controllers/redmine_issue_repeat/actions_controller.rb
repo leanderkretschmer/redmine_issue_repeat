@@ -95,6 +95,7 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
 
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+      RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
       RedmineIssueRepeat::IssueRepeatSchedule.where(issue_id: issue.id).update_all(next_run_at: next_time, active: true, times_run: (sched.times_run || 0) + 1)
       flash[:notice] = "Kopie erstellt: ##{new_issue.id}"
     else

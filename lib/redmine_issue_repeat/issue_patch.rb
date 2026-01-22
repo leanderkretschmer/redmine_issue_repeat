@@ -9,6 +9,7 @@ module RedmineIssueRepeat
 
     module InstanceMethods
       def repeat_issue_after_create
+        require_relative 'checklist_copy'
         cf = IssueCustomField.find_by(name: 'Intervall')
         return unless cf
 
@@ -51,6 +52,7 @@ module RedmineIssueRepeat
           new_issue.custom_field_values = cf_values if cf_values.any?
           if new_issue.save
             IssueRelation.create(issue_from: new_issue, issue_to: self, relation_type: 'relates')
+            RedmineIssueRepeat::ChecklistCopy.copy_from(self, new_issue)
           end
         end
 

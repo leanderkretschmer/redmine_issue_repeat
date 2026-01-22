@@ -4,6 +4,7 @@ module RedmineIssueRepeat
 
     def run_once
       require_relative 'scheduler'
+      require_relative 'checklist_copy'
       init_schedules
       process_due
     end
@@ -285,6 +286,7 @@ module RedmineIssueRepeat
 
         if new_issue.save
           IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+          RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
           RedmineIssueRepeat::IssueRepeatSchedule.where(id: sched.id).update_all(next_run_at: next_time, times_run: (sched.times_run + 1))
         end
       end

@@ -29,6 +29,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
 
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+      RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
       next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current)
       sched.update!(next_run_at: next_run) if next_run
       Rails.logger.info("[IssueRepeat] repeat_now: created new_issue=#{new_issue.id} from=#{issue.id} next_run_at=#{next_run}")
@@ -70,6 +71,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
 
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+      RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
       next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current)
       sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: issue.id)
       sched.interval = interval if sched.new_record?
