@@ -160,8 +160,118 @@ module RedmineIssueRepeat
     def process_due
       require_relative 'scheduler'
       unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
-        Rails.logger.warn("[IssueRepeat] process_due skipped: schedules table missing")
-        return
+        if RedmineIssueRepeat::EntrySync.table_exists?
+          entries_scope = RedmineIssueRepeat::IssueRepeatEntry.where('next_run <= ?', Time.now.to_i)
+          Rails.logger.info("[IssueRepeat] check: entries_due=#{entries_scope.count} at #{Scheduler.now_in_zone}")
+          entries_scope.find_each do |entry|
+            issue = Issue.find_by(id: entry.ticket_id)
+            interval = entry.intervall.presence || Scheduler.interval_value(issue) if issue
+            next unless issue && interval
+            # Erlaubt nur aktive Intervall-Tickets
+            intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
+            if issue.closed? && issue.status_id != intervall_status_id
+              next
+            end
+
+            new_issue = Issue.new
+            new_issue.project = issue.project
+            new_issue.tracker = issue.tracker
+            new_issue.subject = Scheduler.add_prefix_to_subject(issue.subject)
+            new_issue.description = issue.description
+            new_issue.assigned_to = issue.assigned_to
+            new_issue.author = issue.author
+            new_issue.priority = issue.priority
+            new_issue.category = issue.category
+            new_issue.fixed_version = issue.fixed_version
+            new_issue.due_date = issue.due_date
+            new_issue.estimated_hours = issue.estimated_hours
+            new_issue.start_date = Scheduler.start_date_for(interval, Scheduler.time_from_epoch(entry.next_run))
+            if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
+              new_issue.due_date = new_issue.start_date
+            end
+            new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
+
+            cf_values = {}
+            excluded_ids = Scheduler.interval_related_cf_ids
+            issue.custom_field_values.each do |cv|
+              next if excluded_ids.include?(cv.custom_field_id)
+              cf_values[cv.custom_field_id] = cv.value
+            end
+            new_issue.custom_field_values = cf_values if cf_values.any?
+
+            next_time = case interval
+                        when 'stündlich'
+                          t = Scheduler.time_from_epoch(entry.next_run) + 1.hour
+                          custom_time = Scheduler.custom_time_for_issue(issue)
+                          minute = if custom_time
+                                     _, m = Scheduler.parse_time(custom_time)
+                                     m % 60
+                                   else
+                                     (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i % 60
+                                   end
+                          Time.new(t.year, t.month, t.day, t.hour, minute, 0, Scheduler.utc_offset_seconds).to_i
+                        when 'täglich'
+                          d = (Scheduler.time_from_epoch(entry.next_run) + 1.day).to_date
+                          h, m = if entry.intervall_hour
+                                   [entry.intervall_hour, (Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).last)]
+                                 else
+                                   Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time'])
+                                 end
+                          Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                        when 'wöchentlich'
+                          h = entry.intervall_hour || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).first
+                          weekday_names = begin
+                            val = entry.intervall_weekday
+                            val.present? ? JSON.parse(val) : Scheduler.weekdays_for_issue(issue)
+                          rescue
+                            Scheduler.weekdays_for_issue(issue)
+                          end
+                          if weekday_names.any?
+                            target_weekdays = weekday_names.map { |name| Scheduler.weekday_name_to_number(name) }.compact
+                            current_weekday = Scheduler.time_from_epoch(entry.next_run).to_date.cwday
+                            days_ahead = nil
+                            target_weekdays.sort.each do |target_weekday|
+                              diff = target_weekday - current_weekday
+                              diff += 7 if diff <= 0
+                              days_ahead = diff if days_ahead.nil? || diff < days_ahead
+                            end
+                            days_ahead ||= (target_weekdays.min - current_weekday) + 7
+                            d = Scheduler.time_from_epoch(entry.next_run).to_date + days_ahead
+                          else
+                            d = Scheduler.time_from_epoch(entry.next_run).to_date + 7
+                          end
+                          m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).last
+                          Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                        when 'monatlich'
+                          d = Scheduler.time_from_epoch(entry.next_run).to_date.next_month
+                          day = entry.intervall_monthday || issue.created_on.day
+                          last = Date.civil(d.year, d.month, -1).day
+                          day = [day, last].min
+                          h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
+                          Time.new(d.year, d.month, day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                        else
+                          nil
+                        end
+
+            if new_issue.save
+              IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+              RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
+              Rails.logger.info("[IssueRepeat] executed: src##{issue.id} -> new##{new_issue.id} interval=#{interval}")
+              RedmineIssueRepeat::IssueRepeatEntry.where(id: entry.id).update_all(
+                last_run: entry.next_run,
+                next_run: next_time,
+                times_run: (entry.times_run || 0) + 1,
+                ticket_title: issue.subject,
+                intervall: interval,
+                intervall_hour: entry.intervall_hour || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).first
+              )
+            end
+          end
+          return
+        else
+          Rails.logger.warn("[IssueRepeat] process_due skipped: schedules table missing")
+          return
+        end
       end
       intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
       due_scope = RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.now.to_i).where(active: true)
