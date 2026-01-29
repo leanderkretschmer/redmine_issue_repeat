@@ -8,4 +8,8 @@ class RedmineIssueRepeat::IssueRepeatSchedule < ActiveRecord::Base
   validates :next_run_at, presence: true
   validates :times_run, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :active, inclusion: { in: [true, false] }
+
+  def self.table_exists?
+    ActiveRecord::Base.connection.table_exists?(table_name)
+  end
 end

@@ -42,41 +42,45 @@
 </p>
 
 <h3>Wiederholungs-Zeitpläne</h3>
-<table class="list">
-  <thead>
-    <tr>
-      <th>id</th>
-      <th>issue_id</th>
-      <th>intervall</th>
-      <th>created_at</th>
-      <th>updated_at</th>
-      <th>times_run</th>
-      <th>active</th>
-      <th>anchor_minute</th>
-      <th>anchor_hour</th>
-      <th>anchor_day</th>
-      <th>backup_anchor_day</th>
-      <th>Aktion</th>
-    </tr>
-  </thead>
-  <tbody>
-  <% RedmineIssueRepeat::IssueRepeatSchedule.order('id ASC').each do |s| %>
-    <tr>
-      <td><%= s.id %></td>
-      <td><%= s.issue_id %></td>
-      <td><%= h(s.interval) %></td>
-      <td><%= format_time(s.created_at) %></td>
-      <td><%= format_time(s.updated_at) %></td>
-      <td><%= s.times_run %></td>
-      <td><%= s.active ? 'ja' : 'nein' %></td>
-      <td><%= s.anchor_minute %></td>
-      <td><%= s.anchor_hour %></td>
-      <td><%= s.anchor_day %></td>
-      <td><%= s.backup_anchor_day %></td>
-      <td>
-        <%= link_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(s.issue_id), data: { confirm: 'Sofort eine Kopie erstellen?' } %>
-      </td>
-    </tr>
-  <% end %>
-  </tbody>
-  </table>
+<% if ActiveRecord::Base.connection.table_exists?('issue_repeat_schedules') %>
+  <table class="list">
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>issue_id</th>
+        <th>intervall</th>
+        <th>created_at</th>
+        <th>updated_at</th>
+        <th>times_run</th>
+        <th>active</th>
+        <th>anchor_minute</th>
+        <th>anchor_hour</th>
+        <th>anchor_day</th>
+        <th>backup_anchor_day</th>
+        <th>Aktion</th>
+      </tr>
+    </thead>
+    <tbody>
+    <% RedmineIssueRepeat::IssueRepeatSchedule.order('id ASC').each do |s| %>
+      <tr>
+        <td><%= s.id %></td>
+        <td><%= s.issue_id %></td>
+        <td><%= h(s.interval) %></td>
+        <td><%= format_time(s.created_at) %></td>
+        <td><%= format_time(s.updated_at) %></td>
+        <td><%= s.times_run %></td>
+        <td><%= s.active ? 'ja' : 'nein' %></td>
+        <td><%= s.anchor_minute %></td>
+        <td><%= s.anchor_hour %></td>
+        <td><%= s.anchor_day %></td>
+        <td><%= s.backup_anchor_day %></td>
+        <td>
+          <%= link_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(s.issue_id), data: { confirm: 'Sofort eine Kopie erstellen?' } %>
+        </td>
+      </tr>
+    <% end %>
+    </tbody>
+    </table>
+<% else %>
+  <p><em>Keine Schedules-Tabelle gefunden. Die Plugin-Funktionen laufen ohne diese Übersicht weiter.</em></p>
+<% end %>

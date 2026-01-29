@@ -6,6 +6,40 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
     interval = RedmineIssueRepeat::Scheduler.interval_value(issue)
     return redirect_to settings_path unless interval
 
+    unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
+      # Fallback: Ohne Schedules-Tabelle nur eine Kopie anlegen
+      now = RedmineIssueRepeat::Scheduler.now_in_zone
+      new_issue = Issue.new
+      new_issue.project = issue.project
+      new_issue.tracker = issue.tracker
+      new_issue.subject = RedmineIssueRepeat::Scheduler.add_prefix_to_subject(issue.subject)
+      new_issue.description = issue.description
+      new_issue.assigned_to = issue.assigned_to
+      new_issue.author = issue.author
+      new_issue.priority = issue.priority
+      new_issue.category = issue.category
+      new_issue.fixed_version = issue.fixed_version
+      new_issue.due_date = issue.due_date
+      new_issue.estimated_hours = issue.estimated_hours
+      new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, now)
+      new_issue.status = (IssueStatus.where(is_closed: false).order(:id).first || IssueStatus.order(:id).first)
+      cf_values = {}
+      excluded_ids = RedmineIssueRepeat::Scheduler.interval_related_cf_ids
+      issue.custom_field_values.each do |cv|
+        next if excluded_ids.include?(cv.custom_field_id)
+        cf_values[cv.custom_field_id] = cv.value
+      end
+      new_issue.custom_field_values = cf_values if cf_values.any?
+      if new_issue.save
+        IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
+        RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
+        flash[:notice] = "Kopie erstellt: ##{new_issue.id}"
+      else
+        flash[:error] = new_issue.errors.full_messages.join(', ')
+      end
+      return redirect_to settings_path
+    end
+
     sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: issue.id)
     now = RedmineIssueRepeat::Scheduler.now_in_zone
 

@@ -43,6 +43,7 @@ module RedmineIssueRepeat
 
     def sync_all
       return unless table_exists?
+      return unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
       RedmineIssueRepeat::IssueRepeatSchedule.find_each do |sched|
         sync_schedule(sched)
       end

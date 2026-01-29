@@ -10,6 +10,7 @@ module RedmineIssueRepeat
     end
 
     def init_schedules
+      return unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
       cf = IssueCustomField.find_by(name: 'Intervall')
       return unless cf
       CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
@@ -158,6 +159,10 @@ module RedmineIssueRepeat
 
     def process_due
       require_relative 'scheduler'
+      unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
+        Rails.logger.warn("[IssueRepeat] process_due skipped: schedules table missing")
+        return
+      end
       intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
       due_scope = RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.now.to_i).where(active: true)
       Rails.logger.info("[IssueRepeat] check: due=#{due_scope.count} at #{Scheduler.now_in_zone}")

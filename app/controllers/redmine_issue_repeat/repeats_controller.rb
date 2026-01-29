@@ -2,6 +2,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
   before_action :require_admin
 
   def repeat_now
+    return render_404 unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
     sched = RedmineIssueRepeat::IssueRepeatSchedule.find(params[:id])
     issue = sched.issue
     interval = RedmineIssueRepeat::Scheduler.interval_value(issue)
@@ -72,12 +73,14 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
       RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
-      next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
-      sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: issue.id)
-      sched.interval = interval if sched.new_record?
-      sched.next_run_at = next_run if next_run
-      sched.anchor_day = issue.created_on.day
-      sched.save!
+      if RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
+        next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
+        sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: issue.id)
+        sched.interval = interval if sched.new_record?
+        sched.next_run_at = next_run if next_run
+        sched.anchor_day = issue.created_on.day
+        sched.save!
+      end
       Rails.logger.info("[IssueRepeat] repeat_now_issue: created new_issue=#{new_issue.id} from=#{issue.id} next_run_at=#{next_run}")
       flash[:notice] = l(:notice_successful_update)
     else
