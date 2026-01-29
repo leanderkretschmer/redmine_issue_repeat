@@ -185,7 +185,10 @@ module RedmineIssueRepeat
 
       def repeat_issue_after_update
         iv = RedmineIssueRepeat::Scheduler.interval_value(self)
-        next_run = iv ? RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: RedmineIssueRepeat::Scheduler.now_in_zone) : nil
+        unless iv
+          iv = 'täglich'
+        end
+        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
 
         anchor_hour = nil
         anchor_minute = nil
@@ -296,6 +299,7 @@ module RedmineIssueRepeat
           entry.times_run = entry.times_run || 0
           entry.next_run = next_run
           entry.save!
+          Rails.logger.info("[IssueRepeat] hook:update entry ticket=#{id} intervall=#{iv} next_run=#{next_run}")
         end
       end
 
