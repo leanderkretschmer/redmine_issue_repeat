@@ -306,9 +306,6 @@ module RedmineIssueRepeat
 
       def compute_start_date(delta)
         d = Date.today
-
-      def compute_start_date(delta)
-        d = Date.today
         if delta == :month
           anchor = created_on.day
           next_date = RedmineIssueRepeat::Scheduler.next_month_date(d, anchor)
