@@ -10,20 +10,21 @@ module RedmineIssueRepeat
     end
 
     def init_schedules
-      return unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
       cf = IssueCustomField.find_by(name: 'Intervall')
       return unless cf
       intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
-      CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
-        issue = Issue.where(id: iid).first
-        next unless issue
-        next unless intervall_status_id && issue.status_id == intervall_status_id
-        interval = Scheduler.interval_value(issue)
-        next unless interval
-        sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: iid)
-        base_time = Scheduler.now_in_zone
-        next_run = Scheduler.next_run_for(issue, base_time: base_time)
-        if sched.new_record?
+      # Pfad 1: Schedules-Tabelle vorhanden -> wie bisher
+      if RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
+        CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
+          issue = Issue.where(id: iid).first
+          next unless issue
+          next unless intervall_status_id && issue.status_id == intervall_status_id
+          interval = Scheduler.interval_value(issue)
+          next unless interval
+          sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: iid)
+          base_time = Scheduler.now_in_zone
+          next_run = Scheduler.next_run_for(issue, base_time: base_time)
+          if sched.new_record?
           anchor_hour = nil
           anchor_minute = nil
           anchor_day = nil
@@ -75,87 +76,147 @@ module RedmineIssueRepeat
             end
             backup_anchor_day = (anchor_day == 31 ? 30 : (anchor_day == 30 ? 29 : nil))
           end
-        if next_run
-            sched.interval = interval
-            sched.next_run_at = next_run
-            sched.anchor_day = anchor_day
-            sched.anchor_hour = anchor_hour
-            sched.anchor_minute = anchor_minute
-            sched.backup_anchor_day = backup_anchor_day
-            sched.active = true
-            sched.times_run = 0
-            sched.save
-            Rails.logger.info("[IssueRepeat] schedule_added: issue##{iid} interval=#{interval}")
-          begin
-            RedmineIssueRepeat::EntrySync.sync_schedule(sched)
-          rescue => e
-            Rails.logger.error("[IssueRepeat] entry_sync save error: #{e.class} #{e.message}")
+          if next_run
+              sched.interval = interval
+              sched.next_run_at = next_run
+              sched.anchor_day = anchor_day
+              sched.anchor_hour = anchor_hour
+              sched.anchor_minute = anchor_minute
+              sched.backup_anchor_day = backup_anchor_day
+              sched.active = true
+              sched.times_run = 0
+              sched.save
+              Rails.logger.info("[IssueRepeat] schedule_added: issue##{iid} interval=#{interval}")
+            begin
+              RedmineIssueRepeat::EntrySync.sync_schedule(sched)
+            rescue => e
+              Rails.logger.error("[IssueRepeat] entry_sync save error: #{e.class} #{e.message}")
+            end
+            end
+          else
+            updates = {}
+            updates[:interval] = interval if sched.interval != interval
+            case interval
+            when 'stündlich'
+              custom_time = Scheduler.custom_time_for_issue(issue)
+              if custom_time
+                _, m = Scheduler.parse_time(custom_time)
+                minute = m
+              else
+                minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+              end
+              updates[:anchor_minute] = minute if sched.anchor_minute != minute
+            when 'täglich'
+              custom_time = Scheduler.custom_time_for_issue(issue)
+              time_str = custom_time || Setting.plugin_redmine_issue_repeat['daily_time']
+              h, m = Scheduler.parse_time(time_str)
+              updates[:anchor_hour] = h if sched.anchor_hour != h
+              updates[:anchor_minute] = m if sched.anchor_minute != m
+            when 'wöchentlich'
+              custom_time = Scheduler.custom_time_for_issue(issue)
+              time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
+              h, m = Scheduler.parse_time(time_str)
+              updates[:anchor_hour] = h if sched.anchor_hour != h
+              updates[:anchor_minute] = m if sched.anchor_minute != m
+              weekday_names = Scheduler.weekdays_for_issue(issue)
+              if weekday_names.any?
+                wday = Scheduler.weekday_name_to_number(weekday_names.first)
+              else
+                wday = issue.created_on.to_date.cwday
+              end
+              updates[:anchor_day] = wday if sched.anchor_day != wday
+            when 'monatlich'
+              custom_time = Scheduler.custom_time_for_issue(issue)
+              time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
+              h, m = Scheduler.parse_time(time_str)
+              updates[:anchor_hour] = h if sched.anchor_hour != h
+              updates[:anchor_minute] = m if sched.anchor_minute != m
+              monthday_option = Scheduler.monthday_option_for_issue(issue)
+              if monthday_option
+                next_month_date = Time.current.to_date.next_month
+                day = Scheduler.calculate_month_day(monthday_option, issue.created_on.day, next_month_date)
+              else
+                day = issue.created_on.day
+              end
+              updates[:anchor_day] = day if sched.anchor_day != day
+              backup = (day == 31 ? 30 : (day == 30 ? 29 : nil))
+              updates[:backup_anchor_day] = backup if sched.backup_anchor_day != backup
+            end
+            updates[:active] = true if sched.active != true
+            sched.update!(updates) if updates.any?
+            begin
+              RedmineIssueRepeat::EntrySync.sync_schedule(sched)
+            rescue => e
+              Rails.logger.error("[IssueRepeat] entry_sync update error: #{e.class} #{e.message}")
+            end
           end
-          end
-        else
-          updates = {}
-          updates[:interval] = interval if sched.interval != interval
+        end
+        return
+      end
+      # Pfad 2: Schedules-Tabelle fehlt, aber Entries-Tabelle vorhanden -> direkt Einträge pflegen
+      if RedmineIssueRepeat::EntrySync.table_exists?
+        CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
+          issue = Issue.where(id: iid).first
+          next unless issue
+          next unless intervall_status_id && issue.status_id == intervall_status_id
+          interval = Scheduler.interval_value(issue)
+          next unless interval
+          base_time = Scheduler.now_in_zone
+          next_run = Scheduler.next_run_for(issue, base_time: base_time)
+          entry = RedmineIssueRepeat::IssueRepeatEntry.find_or_initialize_by(ticket_id: iid)
+          is_new = entry.new_record?
+          entry.ticket_title = issue.subject
+          entry.intervall = interval
+          # Uhrzeit / Anchor
           case interval
           when 'stündlich'
-            # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
             custom_time = Scheduler.custom_time_for_issue(issue)
             if custom_time
               _, m = Scheduler.parse_time(custom_time)
-              minute = m
+              entry.intervall_hour = nil
+              entry.intervall_weekday = nil
+              entry.intervall_monthday = nil
             else
-              minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i
+              entry.intervall_hour = nil
+              entry.intervall_weekday = nil
+              entry.intervall_monthday = nil
             end
-            updates[:anchor_minute] = minute if sched.anchor_minute != minute
           when 'täglich'
-            # Verwende pro-Ticket-Uhrzeit falls vorhanden
             custom_time = Scheduler.custom_time_for_issue(issue)
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['daily_time']
-            h, m = Scheduler.parse_time(time_str)
-            updates[:anchor_hour] = h if sched.anchor_hour != h
-            updates[:anchor_minute] = m if sched.anchor_minute != m
+            h, _m = Scheduler.parse_time(time_str)
+            entry.intervall_hour = h
+            entry.intervall_weekday = nil
+            entry.intervall_monthday = nil
           when 'wöchentlich'
-            # Verwende pro-Ticket-Uhrzeit falls vorhanden
             custom_time = Scheduler.custom_time_for_issue(issue)
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['weekly_time']
-            h, m = Scheduler.parse_time(time_str)
-            updates[:anchor_hour] = h if sched.anchor_hour != h
-            updates[:anchor_minute] = m if sched.anchor_minute != m
-            # Verwende ausgewählte Wochentage falls vorhanden, sonst Tag der Erstellung
+            h, _m = Scheduler.parse_time(time_str)
+            entry.intervall_hour = h
             weekday_names = Scheduler.weekdays_for_issue(issue)
-            if weekday_names.any?
-              # Nimm den ersten Wochentag als anchor_day (wird für next_run verwendet)
-              wday = Scheduler.weekday_name_to_number(weekday_names.first)
-            else
-              wday = issue.created_on.to_date.cwday
-            end
-            updates[:anchor_day] = wday if sched.anchor_day != wday
+            entry.intervall_weekday = weekday_names.any? ? weekday_names.to_json : nil
+            entry.intervall_monthday = nil
           when 'monatlich'
-            # Verwende pro-Ticket-Uhrzeit falls vorhanden
             custom_time = Scheduler.custom_time_for_issue(issue)
             time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
-            h, m = Scheduler.parse_time(time_str)
-            updates[:anchor_hour] = h if sched.anchor_hour != h
-            updates[:anchor_minute] = m if sched.anchor_minute != m
-            # Verwende Monatstag-Option falls vorhanden
-            monthday_option = Scheduler.monthday_option_for_issue(issue)
-            if monthday_option
-              # Berechne Tag basierend auf Option (für nächsten Monat)
-              next_month_date = Time.current.to_date.next_month
-              day = Scheduler.calculate_month_day(monthday_option, issue.created_on.day, next_month_date)
+            h, _m = Scheduler.parse_time(time_str)
+            entry.intervall_hour = h
+            opt = Scheduler.monthday_option_for_issue(issue)
+            if opt
+              target_date = Scheduler.time_from_epoch(next_run).to_date if next_run
+              entry.intervall_monthday = Scheduler.calculate_month_day(opt, issue.created_on.day, (target_date || issue.created_on.to_date.next_month))
             else
-              day = issue.created_on.day
+              entry.intervall_monthday = issue.created_on.day
             end
-            updates[:anchor_day] = day if sched.anchor_day != day
-            backup = (day == 31 ? 30 : (day == 30 ? 29 : nil))
-            updates[:backup_anchor_day] = backup if sched.backup_anchor_day != backup
+            entry.intervall_weekday = nil
           end
-          updates[:active] = true if sched.active != true
-          sched.update!(updates) if updates.any?
-          begin
-            RedmineIssueRepeat::EntrySync.sync_schedule(sched)
-          rescue => e
-            Rails.logger.error("[IssueRepeat] entry_sync update error: #{e.class} #{e.message}")
-          end
+          entry.intervall_state = IssueStatus.find_by(id: issue.status_id)&.name == 'Intervall'
+          entry.last_changed = issue.updated_on.to_i
+          entry.last_run = entry.last_run
+          entry.times_run = entry.times_run || 0
+          entry.next_run = next_run if next_run
+          entry.save!
+          Rails.logger.info("[IssueRepeat] entry_added: issue##{iid} interval=#{interval}") if is_new
         end
       end
     end
