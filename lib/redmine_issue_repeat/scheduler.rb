@@ -119,7 +119,7 @@ module RedmineIssueRepeat
 
     def next_run_for(issue, base_time: Time.current)
       val = interval_value(issue)
-      Rails.logger.info("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
+      Rails.logger.debug("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
       return nil unless val
       bt = base_time.getlocal(utc_offset_seconds)
       case val
@@ -133,7 +133,7 @@ module RedmineIssueRepeat
         end
         t = bt + 3600
         run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, utc_offset_seconds)
-        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'täglich'
         custom_time = custom_time_for_issue(issue)
@@ -141,7 +141,7 @@ module RedmineIssueRepeat
         h, m = parse_time(time_str)
         d = bt.to_date + 1
         run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
-        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'wöchentlich'
         custom_time = custom_time_for_issue(issue)
@@ -167,7 +167,7 @@ module RedmineIssueRepeat
           d = base_time.to_date + 7
         end
         run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
-        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'monatlich'
         custom_time = custom_time_for_issue(issue)
@@ -183,7 +183,7 @@ module RedmineIssueRepeat
         last_day = Date.civil(next_month_date.year, next_month_date.month, -1).day
         anchor_day = [anchor_day, last_day].min
         run = Time.new(next_month_date.year, next_month_date.month, anchor_day, h, m, 0, utc_offset_seconds)
-        Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
+        Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       else
         nil

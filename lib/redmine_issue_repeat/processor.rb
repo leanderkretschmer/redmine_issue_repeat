@@ -159,7 +159,9 @@ module RedmineIssueRepeat
     def process_due
       require_relative 'scheduler'
       intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
-      RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.now.to_i).where(active: true).find_each do |sched|
+      due_scope = RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.now.to_i).where(active: true)
+      Rails.logger.info("[IssueRepeat] check: due=#{due_scope.count} at #{Scheduler.now_in_zone}")
+      due_scope.find_each do |sched|
         issue = sched.issue
         unless issue && Scheduler.interval_value(issue)
           sched.update!(active: false)
@@ -297,6 +299,7 @@ module RedmineIssueRepeat
         if new_issue.save
           IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
           RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
+          Rails.logger.info("[IssueRepeat] executed: src##{issue.id} -> new##{new_issue.id} interval=#{interval}")
           prev_run = sched.next_run_at
           RedmineIssueRepeat::IssueRepeatSchedule.where(id: sched.id).update_all(next_run_at: next_time, times_run: (sched.times_run + 1))
           begin
