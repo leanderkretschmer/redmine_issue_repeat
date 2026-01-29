@@ -81,6 +81,45 @@
     <% end %>
     </tbody>
     </table>
+<% elsif ActiveRecord::Base.connection.table_exists?('issue_repeat_entries') %>
+  <table class="list">
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>ticket_id</th>
+        <th>ticket_title</th>
+        <th>intervall</th>
+        <th>intervall_state</th>
+        <th>times_run</th>
+        <th>next_run</th>
+        <th>last_run</th>
+        <th>intervall_hour</th>
+        <th>intervall_weekday</th>
+        <th>intervall_monthday</th>
+        <th>Aktion</th>
+      </tr>
+    </thead>
+    <tbody>
+    <% RedmineIssueRepeat::IssueRepeatEntry.order('id ASC').each do |e| %>
+      <tr>
+        <td><%= e.id %></td>
+        <td><%= e.ticket_id %></td>
+        <td><%= h(e.ticket_title) %></td>
+        <td><%= h(e.intervall) %></td>
+        <td><%= e.intervall_state ? 'ja' : 'nein' %></td>
+        <td><%= e.times_run %></td>
+        <td><%= e.next_run ? format_time(Time.at(e.next_run)) : '-' %></td>
+        <td><%= e.last_run ? format_time(Time.at(e.last_run)) : '-' %></td>
+        <td><%= e.intervall_hour %></td>
+        <td><%= e.intervall_weekday %></td>
+        <td><%= e.intervall_monthday %></td>
+        <td>
+          <%= link_to 'Jetzt wiederholen', redmine_issue_repeat_repeat_now_issue_path(e.ticket_id), data: { confirm: 'Sofort eine Kopie erstellen?' } %>
+        </td>
+      </tr>
+    <% end %>
+    </tbody>
+    </table>
 <% else %>
-  <p><em>Keine Schedules-Tabelle gefunden. Die Plugin-Funktionen laufen ohne diese Übersicht weiter.</em></p>
+  <p><em>Keine Schedules- oder Entries-Tabelle gefunden. Bitte Plugin-Migrationen ausführen.</em></p>
 <% end %>
