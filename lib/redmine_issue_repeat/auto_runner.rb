@@ -11,10 +11,9 @@ module RedmineIssueRepeat
           rescue => e
             Rails.logger.error("[IssueRepeat] auto_runner error: #{e.class} #{e.message}")
           end
-          sleep 60
+          sleep 10
         end
       end
     end
   end
 end
-

@@ -13,9 +13,11 @@ module RedmineIssueRepeat
       return unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
       cf = IssueCustomField.find_by(name: 'Intervall')
       return unless cf
+      intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
       CustomValue.where(customized_type: 'Issue', custom_field_id: cf.id).where.not(value: [nil, '']).pluck(:customized_id).each do |iid|
         issue = Issue.where(id: iid).first
         next unless issue
+        next unless intervall_status_id && issue.status_id == intervall_status_id
         interval = Scheduler.interval_value(issue)
         next unless interval
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: iid)
@@ -83,6 +85,7 @@ module RedmineIssueRepeat
             sched.active = true
             sched.times_run = 0
             sched.save
+            Rails.logger.info("[IssueRepeat] schedule_added: issue##{iid} interval=#{interval}")
           begin
             RedmineIssueRepeat::EntrySync.sync_schedule(sched)
           rescue => e
@@ -162,7 +165,7 @@ module RedmineIssueRepeat
       unless RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
         if RedmineIssueRepeat::EntrySync.table_exists?
           entries_scope = RedmineIssueRepeat::IssueRepeatEntry.where('next_run <= ?', Time.now.to_i)
-          Rails.logger.info("[IssueRepeat] check: entries_due=#{entries_scope.count} at #{Scheduler.now_in_zone}")
+          Rails.logger.debug("[IssueRepeat] check: entries_due=#{entries_scope.count} at #{Scheduler.now_in_zone}")
           entries_scope.find_each do |entry|
             issue = Issue.find_by(id: entry.ticket_id)
             interval = entry.intervall.presence || Scheduler.interval_value(issue) if issue
@@ -275,7 +278,7 @@ module RedmineIssueRepeat
       end
       intervall_status_id = IssueStatus.where(name: 'Intervall').pluck(:id).first
       due_scope = RedmineIssueRepeat::IssueRepeatSchedule.where('next_run_at <= ?', Time.now.to_i).where(active: true)
-      Rails.logger.info("[IssueRepeat] check: due=#{due_scope.count} at #{Scheduler.now_in_zone}")
+      Rails.logger.debug("[IssueRepeat] check: due=#{due_scope.count} at #{Scheduler.now_in_zone}")
       due_scope.find_each do |sched|
         issue = sched.issue
         unless issue && Scheduler.interval_value(issue)
