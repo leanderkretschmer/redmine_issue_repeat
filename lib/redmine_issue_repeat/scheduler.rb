@@ -6,6 +6,24 @@ module RedmineIssueRepeat
       Setting.plugin_redmine_issue_repeat || {}
     end
 
+    def utc_offset_seconds
+      tz = settings['time_zone'].to_s.strip
+      zone = ActiveSupport::TimeZone[tz] if tz && !tz.empty?
+      return zone.utc_offset if zone
+      if tz =~ /\AUTC([+-]\d{1,2})\z/
+        return tz.sub('UTC', '').to_i * 3600
+      end
+      0
+    end
+
+    def now_in_zone
+      Time.now.getlocal(utc_offset_seconds)
+    end
+
+    def time_from_epoch(epoch)
+      Time.at(epoch).getlocal(utc_offset_seconds)
+    end
+
     def add_prefix_to_subject(subject)
       return subject if subject.nil?
       
@@ -103,10 +121,9 @@ module RedmineIssueRepeat
       val = interval_value(issue)
       Rails.logger.info("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
       return nil unless val
-      
+      bt = base_time.getlocal(utc_offset_seconds)
       case val
       when 'stündlich'
-        # Verwende pro-Ticket-Uhrzeit falls vorhanden (nur Minute wird verwendet)
         custom_time = custom_time_for_issue(issue)
         if custom_time
           _, m = parse_time(custom_time)
@@ -114,79 +131,60 @@ module RedmineIssueRepeat
         else
           minute = (settings['hourly_minute'] || '0').to_i % 60
         end
-        t = base_time + 3600
-        run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, t.utc_offset)
+        t = bt + 3600
+        run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, utc_offset_seconds)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
-        run
+        run.to_i
       when 'täglich'
-        # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
         custom_time = custom_time_for_issue(issue)
         time_str = custom_time || settings['daily_time']
         h, m = parse_time(time_str)
-        d = base_time.to_date + 1
-        run = Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        d = bt.to_date + 1
+        run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
-        run
+        run.to_i
       when 'wöchentlich'
-        # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
         custom_time = custom_time_for_issue(issue)
         time_str = custom_time || settings['weekly_time']
         h, m = parse_time(time_str)
-        
-        # Prüfe ob Wochentage ausgewählt wurden
         weekday_names = weekdays_for_issue(issue)
         if weekday_names.any?
-          # Konvertiere Wochentagsnamen zu Nummern
           target_weekdays = weekday_names.map { |name| weekday_name_to_number(name) }.compact
           if target_weekdays.any?
-            # Finde nächsten passenden Wochentag
-            current_weekday = base_time.to_date.cwday
-            # Sortiere Wochentage und finde den nächsten
+            current_weekday = bt.to_date.cwday
             days_ahead = nil
             target_weekdays.sort.each do |target_weekday|
               diff = target_weekday - current_weekday
-              diff += 7 if diff <= 0 # Wenn der Tag bereits vorbei ist, nächste Woche
+              diff += 7 if diff <= 0
               days_ahead = diff if days_ahead.nil? || diff < days_ahead
             end
-            # Falls kein Tag in dieser Woche gefunden wurde, nimm den ersten der nächsten Woche
             days_ahead ||= (target_weekdays.min - current_weekday) + 7
             d = base_time.to_date + days_ahead
           else
             d = base_time.to_date + 7
           end
         else
-          # Fallback: +7 Tage wie bisher
           d = base_time.to_date + 7
         end
-        
-        run = Time.new(d.year, d.month, d.day, h, m, 0, base_time.utc_offset)
+        run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
-        run
+        run.to_i
       when 'monatlich'
-        # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
         custom_time = custom_time_for_issue(issue)
         time_str = custom_time || settings['monthly_time']
         h, m = parse_time(time_str)
-        
-        # Berechne nächsten Monat
-        next_month_date = base_time.to_date.next_month
-        
-        # Prüfe Monatstag-Option
+        next_month_date = bt.to_date.next_month
         monthday_option = monthday_option_for_issue(issue)
         if monthday_option
           anchor_day = calculate_month_day(monthday_option, issue.created_on.day, next_month_date)
         else
-          # Fallback: Aktuelles Datum
           anchor_day = calculate_month_day('Aktuelles Datum', issue.created_on.day, next_month_date)
         end
-        
-        # Stelle sicher, dass der Tag im Monat existiert
         last_day = Date.civil(next_month_date.year, next_month_date.month, -1).day
         anchor_day = [anchor_day, last_day].min
-        
-        run = Time.new(next_month_date.year, next_month_date.month, anchor_day, h, m, 0, base_time.utc_offset)
+        run = Time.new(next_month_date.year, next_month_date.month, anchor_day, h, m, 0, utc_offset_seconds)
         Rails.logger.info("[IssueRepeat] scheduler: next_run=#{run}")
-        run
+        run.to_i
       else
         nil
       end

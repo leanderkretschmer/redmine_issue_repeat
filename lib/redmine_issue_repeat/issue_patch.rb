@@ -57,7 +57,7 @@ module RedmineIssueRepeat
         end
 
         iv = RedmineIssueRepeat::Scheduler.interval_value(self)
-        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: Time.current)
+        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
         if iv && next_run
           anchor_hour = nil
           anchor_minute = nil
@@ -148,6 +148,12 @@ module RedmineIssueRepeat
             active: true,
             times_run: 0
           )
+          begin
+            sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: id)
+            RedmineIssueRepeat::EntrySync.sync_schedule(sched) if sched
+          rescue => e
+            Rails.logger.error("[IssueRepeat] entry_sync create error: #{e.class} #{e.message}")
+          end
         end
       end
 

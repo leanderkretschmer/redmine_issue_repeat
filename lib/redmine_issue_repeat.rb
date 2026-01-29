@@ -5,6 +5,7 @@ require_relative 'redmine_issue_repeat/auto_runner'
 require_relative 'redmine_issue_repeat/issue_ui'
 require_relative 'redmine_issue_repeat/view_hooks'
 require_relative 'redmine_issue_repeat/custom_value_patch'
+require_relative 'redmine_issue_repeat/entry_sync'
 
 ActiveSupport::Reloader.to_prepare do
   RedmineIssueRepeat::IssuePatch.apply
@@ -102,5 +103,10 @@ end
 Rails.application.config.after_initialize do
   RedmineIssueRepeat::StatusSetup.ensure_intervall_status
   RedmineIssueRepeat::FieldSetup.ensure_custom_fields
+  begin
+    RedmineIssueRepeat::EntrySync.sync_all
+  rescue => e
+    Rails.logger.error("[IssueRepeat] entry_sync error: #{e.class} #{e.message}")
+  end
   RedmineIssueRepeat::AutoRunner.start
 end

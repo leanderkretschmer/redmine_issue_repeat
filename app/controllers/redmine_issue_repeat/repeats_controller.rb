@@ -15,7 +15,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     new_issue.description = issue.description
     new_issue.assigned_to = issue.assigned_to
     new_issue.estimated_hours = issue.estimated_hours
-    new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, Time.current)
+    new_issue.start_date = RedmineIssueRepeat::Scheduler.start_date_for(interval, RedmineIssueRepeat::Scheduler.now_in_zone)
     new_issue.status = IssueStatus.default
 
     # Copy all custom fields except all Intervall-related fields
@@ -30,7 +30,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
       RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
-      next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current)
+      next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
       sched.update!(next_run_at: next_run) if next_run
       Rails.logger.info("[IssueRepeat] repeat_now: created new_issue=#{new_issue.id} from=#{issue.id} next_run_at=#{next_run}")
       flash[:notice] = l(:notice_successful_update)
@@ -72,7 +72,7 @@ class RedmineIssueRepeat::RepeatsController < ApplicationController
     if new_issue.save
       IssueRelation.create(issue_from: new_issue, issue_to: issue, relation_type: 'relates')
       RedmineIssueRepeat::ChecklistCopy.copy_from(issue, new_issue)
-      next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: Time.current)
+      next_run = RedmineIssueRepeat::Scheduler.next_run_for(issue, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
       sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: issue.id)
       sched.interval = interval if sched.new_record?
       sched.next_run_at = next_run if next_run

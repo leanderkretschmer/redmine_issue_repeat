@@ -13,6 +13,7 @@ Redmine::Plugin.register :redmine_issue_repeat do
     'weekly_time' => '09:00',
     'monthly_time' => '09:00',
     'hourly_minute' => '0',
+    'time_zone' => 'UTC',
     'copy_issue_bg_color' => '#fffbe6',
     'add_prefix_to_copied_issues' => false,
     'copied_issue_prefix' => '➚'

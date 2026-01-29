@@ -12,6 +12,12 @@
   <%= text_field_tag 'settings[monthly_time]', settings['monthly_time'] %>
 </p>
 <p>
+  <label>Zeitzone (z. B. UTC, Europe/Berlin, UTC+1)</label>
+  <%= text_field_tag 'settings[time_zone]', (settings['time_zone'].presence || 'UTC'), placeholder: 'UTC' %>
+  <br/>
+  <em>Bestimmt die Interpretation der Uhrzeiten für Wiederholungen.</em>
+  </p>
+<p>
   <label>Minuten bei stündlich (0–59, 0 = volle Stunde)</label>
   <%= number_field_tag 'settings[hourly_minute]', (settings['hourly_minute'] || '0'), in: 0..59 %>
 </p>

@@ -134,7 +134,7 @@ namespace :redmine_issue_repeat do
         next unless interval
 
         sched = RedmineIssueRepeat::IssueRepeatSchedule.find_by(issue_id: issue.id)
-        next_run = next_run_for(issue, base_time: Time.current)
+        next_run = next_run_for(issue, base_time: Scheduler.now_in_zone)
         if sched
           updates = {}
           updates[:interval] = interval if sched.interval != interval
