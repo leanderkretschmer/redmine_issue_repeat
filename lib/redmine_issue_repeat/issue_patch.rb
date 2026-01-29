@@ -184,13 +184,8 @@ module RedmineIssueRepeat
       end
 
       def repeat_issue_after_update
-        cf = IssueCustomField.find_by(name: 'Intervall')
-        return unless cf
-        val = CustomValue.where(customized_type: 'Issue', customized_id: id, custom_field_id: cf.id).limit(1).pluck(:value).first
-        return if val.nil? || val.to_s.strip.empty?
         iv = RedmineIssueRepeat::Scheduler.interval_value(self)
-        next_run = RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: RedmineIssueRepeat::Scheduler.now_in_zone)
-        return unless iv && next_run
+        next_run = iv ? RedmineIssueRepeat::Scheduler.next_run_for(self, base_time: RedmineIssueRepeat::Scheduler.now_in_zone) : nil
 
         anchor_hour = nil
         anchor_minute = nil
@@ -262,7 +257,7 @@ module RedmineIssueRepeat
                               end
         end
 
-        if RedmineIssueRepeat::IssueRepeatSchedule.table_exists?
+        if RedmineIssueRepeat::IssueRepeatSchedule.table_exists? && iv && next_run
           sched = RedmineIssueRepeat::IssueRepeatSchedule.find_or_initialize_by(issue_id: id)
           sched.interval = iv
           sched.next_run_at = next_run
