@@ -20,24 +20,38 @@
       'Sonntag': 7
     };
     
-    // Finde die Zeile mit dem Wochentag-Feld
+    // Suche sowohl Tabellen- als auch Definitionslisten-Strukturen
+    var valueCell = null;
+    // 1) Table row per CF id
     var row = document.querySelector('tr.issue_custom_field_<%= weekday_cf_id %>');
-    if (!row) {
-      // Fallback: Suche nach Label
-      var labels = document.querySelectorAll('th, label');
-      labels.forEach(function(label) {
-        if (label.textContent && label.textContent.includes('Intervall Wochentag')) {
-          row = label.closest('tr');
+    if (row) {
+      valueCell = row.querySelector('td.value, td:last-child');
+    }
+    // 2) Fallback: Suche nach Label-Text und nehme die Nachbarzelle
+    if (!valueCell) {
+      var ths = document.querySelectorAll('table#attributes th');
+      ths.forEach(function(th){
+        var t = (th.textContent || '').trim();
+        if (!valueCell && t.indexOf('Intervall Wochentag') !== -1) {
+          var td = th.nextElementSibling;
+          if (td) valueCell = td;
         }
       });
     }
-    
-    if (!row) return;
-    
-    var valueCell = row.querySelector('td.value, td:last-child');
+    // 3) Fallback: Definition list (dt/dd)
+    if (!valueCell) {
+      var dts = document.querySelectorAll('dt');
+      dts.forEach(function(dt){
+        var t = (dt.textContent || '').trim();
+        if (!valueCell && t.indexOf('Intervall Wochentag') !== -1) {
+          var dd = dt.nextElementSibling;
+          if (dd) valueCell = dd;
+        }
+      });
+    }
     if (!valueCell) return;
-    
-    var text = valueCell.textContent || valueCell.innerText || '';
+
+    var text = (valueCell.textContent || valueCell.innerText || '').replace(/\u00A0/g, ' ');
     if (!text || text.trim() === '') return;
     
     // Parse Werte
@@ -45,14 +59,20 @@
     if (values.length <= 1) return;
     
     // Sortiere
-    var sorted = values.sort(function(a, b) {
+    var sorted = values.slice().sort(function(a, b) {
       return (weekdayOrder[a] || 999) - (weekdayOrder[b] || 999);
     });
     
     // Aktualisiere nur wenn nötig
     var newText = sorted.join(', ');
     if (newText !== text.trim()) {
-      valueCell.textContent = newText;
+      // Ersetze Text oder einzelne Chips/Spans, falls vorhanden
+      if (valueCell.querySelectorAll('span').length > 0) {
+        // Falls Redmine Themes die Werte in Spans rendern
+        valueCell.innerHTML = sorted.map(function(v){ return '<span>' + v + '</span>'; }).join(', ');
+      } else {
+        valueCell.textContent = newText;
+      }
     }
     <% end %>
   }
@@ -60,16 +80,19 @@
   // Ausführen
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(sortWeekdays, 300);
+      setTimeout(sortWeekdays, 0);
+      setTimeout(sortWeekdays, 250);
     });
   } else {
-    setTimeout(sortWeekdays, 300);
+    setTimeout(sortWeekdays, 0);
+    setTimeout(sortWeekdays, 250);
   }
   
   // Für AJAX
   if (typeof jQuery !== 'undefined') {
     jQuery(document).ajaxComplete(function() {
-      setTimeout(sortWeekdays, 300);
+      setTimeout(sortWeekdays, 0);
+      setTimeout(sortWeekdays, 250);
     });
   }
 })();
