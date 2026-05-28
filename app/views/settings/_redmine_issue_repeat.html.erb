@@ -12,10 +12,9 @@
   <%= text_field_tag 'settings[monthly_time]', settings['monthly_time'] %>
 </p>
 <p>
-  <label>Zeitzone (z. B. UTC, Europe/Berlin, UTC+1)</label>
-  <%= text_field_tag 'settings[time_zone]', (settings['time_zone'].presence || 'UTC'), placeholder: 'UTC' %>
+  <label>Zeitzone</label>
   <br/>
-  <em>Bestimmt die Interpretation der Uhrzeiten für Wiederholungen.</em>
+  <em>Die Uhrzeiten werden in der Systemzeitzone des Servers interpretiert (inklusive Sommer-/Winterzeit). Keine separate Einstellung erforderlich.</em>
   </p>
 <p>
   <label>Minuten bei stündlich (0–59, 0 = volle Stunde)</label>

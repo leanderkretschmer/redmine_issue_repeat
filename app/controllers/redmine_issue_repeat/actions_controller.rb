@@ -71,12 +71,12 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
                 when 'stündlich'
                   t = now + 1.hour
                   minute = (sched.anchor_minute || (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i) % 60
-                  Time.new(t.year, t.month, t.day, t.hour, minute, 0, RedmineIssueRepeat::Scheduler.utc_offset_seconds).to_i
+                  RedmineIssueRepeat::Scheduler.build_time(t.year, t.month, t.day, t.hour, minute).to_i
                 when 'täglich'
                   d = (now + 1.day).to_date
                   h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).first
                   m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time']).last
-                  Time.new(d.year, d.month, d.day, h, m, 0, RedmineIssueRepeat::Scheduler.utc_offset_seconds).to_i
+                  RedmineIssueRepeat::Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                 when 'wöchentlich'
                   # Verwende pro-Ticket-Uhrzeit falls vorhanden, sonst Standard
                   custom_time = RedmineIssueRepeat::Scheduler.custom_time_for_issue(issue)
@@ -106,7 +106,7 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
                   else
                     d = (now + 7.days).to_date
                   end
-                  Time.new(d.year, d.month, d.day, h, m, 0, RedmineIssueRepeat::Scheduler.utc_offset_seconds).to_i
+                  RedmineIssueRepeat::Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                 when 'monatlich'
                   anchor_day = sched.anchor_day || issue.created_on.day
                   d = RedmineIssueRepeat::Scheduler.next_month_date(now.to_date, anchor_day)
@@ -119,7 +119,7 @@ class RedmineIssueRepeat::ActionsController < ApplicationController
                   end
                   h = sched.anchor_hour || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).first
                   m = sched.anchor_minute || RedmineIssueRepeat::Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time']).last
-                  Time.new(d.year, d.month, day, h, m, 0, RedmineIssueRepeat::Scheduler.utc_offset_seconds).to_i
+                  RedmineIssueRepeat::Scheduler.build_time(d.year, d.month, day, h, m).to_i
                 end
 
     if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date

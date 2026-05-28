@@ -6,22 +6,21 @@ module RedmineIssueRepeat
       Setting.plugin_redmine_issue_repeat || {}
     end
 
-    def utc_offset_seconds
-      tz = settings['time_zone'].to_s.strip
-      zone = ActiveSupport::TimeZone[tz] if tz && !tz.empty?
-      return zone.utc_offset if zone
-      if tz =~ /\AUTC([+-]\d{1,2})\z/
-        return tz.sub('UTC', '').to_i * 3600
-      end
-      0
+    # Builds the absolute time for a local wall-clock value using the system
+    # timezone of the process (the TZ the container/VM runs in, e.g.
+    # Europe/Berlin). That zone is DST-aware, so daily/weekly/monthly runs keep
+    # firing at the configured wall-clock time across the CET/CEST switch
+    # instead of drifting by an hour.
+    def build_time(year, month, day, hour, minute)
+      Time.new(year, month, day, hour, minute, 0)
     end
 
     def now_in_zone
-      Time.now.getlocal(utc_offset_seconds)
+      Time.now
     end
 
     def time_from_epoch(epoch)
-      Time.at(epoch).getlocal(utc_offset_seconds)
+      Time.at(epoch)
     end
 
     def add_prefix_to_subject(subject)
@@ -121,7 +120,7 @@ module RedmineIssueRepeat
       val = interval_value(issue)
       Rails.logger.debug("[IssueRepeat] scheduler: issue=#{issue.id} interval=#{val.inspect} base_time=#{base_time}")
       return nil unless val
-      bt = base_time.getlocal(utc_offset_seconds)
+      bt = base_time.getlocal
       case val
       when 'stündlich'
         custom_time = custom_time_for_issue(issue)
@@ -132,7 +131,7 @@ module RedmineIssueRepeat
           minute = (settings['hourly_minute'] || '0').to_i % 60
         end
         t = bt + 3600
-        run = Time.new(t.year, t.month, t.day, t.hour, minute, 0, utc_offset_seconds)
+        run = build_time(t.year, t.month, t.day, t.hour, minute)
         Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'täglich'
@@ -140,7 +139,7 @@ module RedmineIssueRepeat
         time_str = custom_time || settings['daily_time']
         h, m = parse_time(time_str)
         d = bt.to_date + 1
-        run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
+        run = build_time(d.year, d.month, d.day, h, m)
         Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'wöchentlich'
@@ -166,7 +165,7 @@ module RedmineIssueRepeat
         else
           d = base_time.to_date + 7
         end
-        run = Time.new(d.year, d.month, d.day, h, m, 0, utc_offset_seconds)
+        run = build_time(d.year, d.month, d.day, h, m)
         Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       when 'monatlich'
@@ -182,7 +181,7 @@ module RedmineIssueRepeat
         end
         last_day = Date.civil(next_month_date.year, next_month_date.month, -1).day
         anchor_day = [anchor_day, last_day].min
-        run = Time.new(next_month_date.year, next_month_date.month, anchor_day, h, m, 0, utc_offset_seconds)
+        run = build_time(next_month_date.year, next_month_date.month, anchor_day, h, m)
         Rails.logger.debug("[IssueRepeat] scheduler: next_run=#{run}")
         run.to_i
       else

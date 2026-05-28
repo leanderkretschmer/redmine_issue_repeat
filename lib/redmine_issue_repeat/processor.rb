@@ -273,7 +273,7 @@ module RedmineIssueRepeat
                                    else
                                      (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i % 60
                                    end
-                          Time.new(t.year, t.month, t.day, t.hour, minute, 0, Scheduler.utc_offset_seconds).to_i
+                          Scheduler.build_time(t.year, t.month, t.day, t.hour, minute).to_i
                         when 'täglich'
                           d = (Scheduler.time_from_epoch(entry.next_run) + 1.day).to_date
                           h, m = if entry.intervall_hour
@@ -281,7 +281,7 @@ module RedmineIssueRepeat
                                  else
                                    Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['daily_time'])
                                  end
-                          Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                          Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                         when 'wöchentlich'
                           h = entry.intervall_hour || Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).first
                           weekday_names = begin
@@ -305,14 +305,14 @@ module RedmineIssueRepeat
                             d = Scheduler.time_from_epoch(entry.next_run).to_date + 7
                           end
                           m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['weekly_time']).last
-                          Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                          Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                         when 'monatlich'
                           d = Scheduler.time_from_epoch(entry.next_run).to_date.next_month
                           day = entry.intervall_monthday || issue.created_on.day
                           last = Date.civil(d.year, d.month, -1).day
                           day = [day, last].min
                           h, m = Scheduler.parse_time(Setting.plugin_redmine_issue_repeat['monthly_time'])
-                          Time.new(d.year, d.month, day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                          Scheduler.build_time(d.year, d.month, day, h, m).to_i
                         else
                           nil
                         end
@@ -392,7 +392,7 @@ module RedmineIssueRepeat
                           minute = (Setting.plugin_redmine_issue_repeat['hourly_minute'] || '0').to_i % 60
                         end
                       end
-                      Time.new(t.year, t.month, t.day, t.hour, minute, 0, Scheduler.utc_offset_seconds).to_i
+                      Scheduler.build_time(t.year, t.month, t.day, t.hour, minute).to_i
                     when 'täglich'
                       d = (Scheduler.time_from_epoch(sched.next_run_at) + 1.day).to_date
                       # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
@@ -403,7 +403,7 @@ module RedmineIssueRepeat
                         time_str = custom_time || Setting.plugin_redmine_issue_repeat['daily_time']
                         h, m = Scheduler.parse_time(time_str)
                       end
-                      Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                      Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                     when 'wöchentlich'
                       # Verwende gespeicherte Anchor-Werte oder pro-Ticket-Uhrzeit oder Standard
                       h = sched.anchor_hour
@@ -441,7 +441,7 @@ module RedmineIssueRepeat
                         days_ahead += 7 if days_ahead <= 0
                         d = Scheduler.time_from_epoch(sched.next_run_at).to_date + days_ahead
                       end
-                      Time.new(d.year, d.month, d.day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                      Scheduler.build_time(d.year, d.month, d.day, h, m).to_i
                     when 'monatlich'
                       # Berechne nächsten Monat
                       d = Scheduler.time_from_epoch(sched.next_run_at).to_date.next_month
@@ -470,7 +470,7 @@ module RedmineIssueRepeat
                         time_str = custom_time || Setting.plugin_redmine_issue_repeat['monthly_time']
                         h, m = Scheduler.parse_time(time_str)
                       end
-                      Time.new(d.year, d.month, day, h, m, 0, Scheduler.utc_offset_seconds).to_i
+                      Scheduler.build_time(d.year, d.month, day, h, m).to_i
                     else
                       nil
                     end
