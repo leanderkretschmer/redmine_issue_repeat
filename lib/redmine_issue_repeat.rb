@@ -81,6 +81,23 @@ module RedmineIssueRepeat
         Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Monatstag'")
       end
 
+      # Stelle sicher, dass das Feld "Datum im Titel" existiert
+      cf_date_in_subject = IssueCustomField.find_by(name: 'Intervall Datum im Titel')
+      unless cf_date_in_subject
+        cf_date_in_subject = IssueCustomField.new(
+          name: 'Intervall Datum im Titel',
+          field_format: 'bool',
+          is_required: false,
+          visible: true,
+          editable: true,
+          default_value: '0',
+          description: 'Hängt das Datum der jeweiligen Kopie an die Ticketbezeichnung an (z.B. "JourFixe Gruppe 23.10.2026").'
+        )
+        cf_date_in_subject.trackers = Tracker.all
+        cf_date_in_subject.save
+        Rails.logger.info("[IssueRepeat] Created Custom Field 'Intervall Datum im Titel'")
+      end
+
       # Stelle sicher, dass das Intervall Feld die korrekte Sortierung hat (ohne custom)
       cf = IssueCustomField.find_by(name: 'Intervall')
       if cf

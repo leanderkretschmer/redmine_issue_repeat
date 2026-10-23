@@ -15,6 +15,7 @@ Redmine::Plugin.register :redmine_issue_repeat do
     'hourly_minute' => '0',
     'copy_issue_bg_color' => '#fffbe6',
     'add_prefix_to_copied_issues' => false,
-    'copied_issue_prefix' => '➚'
+    'copied_issue_prefix' => '➚',
+    'subject_date_format' => '%d.%m.%Y'
   }, partial: 'settings/redmine_issue_repeat'
 end

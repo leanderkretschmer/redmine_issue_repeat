@@ -29,7 +29,6 @@ module RedmineIssueRepeat
           new_issue = Issue.new
           new_issue.project = project
           new_issue.tracker = tracker
-          new_issue.subject = RedmineIssueRepeat::Scheduler.add_prefix_to_subject(subject)
           new_issue.description = description
           new_issue.assigned_to = assigned_to
           new_issue.author = author
@@ -39,6 +38,7 @@ module RedmineIssueRepeat
           new_issue.due_date = due_date
           new_issue.estimated_hours = estimated_hours
           new_issue.start_date = compute_start_date(delta)
+          new_issue.subject = RedmineIssueRepeat::Scheduler.subject_for_copy(self, new_issue.start_date)
           if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
             new_issue.due_date = new_issue.start_date
           end

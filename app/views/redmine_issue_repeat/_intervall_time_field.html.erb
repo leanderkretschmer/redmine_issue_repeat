@@ -4,12 +4,14 @@
   time_cf = IssueCustomField.find_by(name: 'Intervall Uhrzeit')
   weekday_cf = IssueCustomField.find_by(name: 'Intervall Wochentag')
   monthday_cf = IssueCustomField.find_by(name: 'Intervall Monatstag')
+  date_in_subject_cf = IssueCustomField.find_by(name: 'Intervall Datum im Titel')
   return unless intervall_cf && time_cf
   
   intervall_cf_id = intervall_cf.id
   time_cf_id = time_cf.id
   weekday_cf_id = weekday_cf&.id
   monthday_cf_id = monthday_cf&.id
+  date_in_subject_cf_id = date_in_subject_cf&.id
   current_intervall = issue&.custom_field_values&.find { |cv| cv.custom_field_id == intervall_cf_id }&.value
   current_time = issue&.custom_field_values&.find { |cv| cv.custom_field_id == time_cf_id }&.value
 %>
@@ -276,6 +278,15 @@
       monthdayFieldRow = monthdayRows[0];
     }
     <% end %>
+
+    // Finde das "Datum im Titel"-Feld-Element
+    var dateInSubjectFieldRow = null;
+    <% if date_in_subject_cf_id %>
+    var dateInSubjectRows = document.querySelectorAll('tr.issue_custom_field_<%= date_in_subject_cf_id %>');
+    if (dateInSubjectRows.length > 0) {
+      dateInSubjectFieldRow = dateInSubjectRows[0];
+    }
+    <% end %>
     
     if (!intervallField) return;
     
@@ -294,6 +305,11 @@
         <% if monthday_cf_id %>
         if (label.textContent && label.textContent.includes('Intervall Monatstag')) {
           monthdayFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
+        }
+        <% end %>
+        <% if date_in_subject_cf_id %>
+        if (label.textContent && label.textContent.includes('Intervall Datum im Titel')) {
+          dateInSubjectFieldRow = label.closest('tr') || label.closest('p') || label.closest('div');
         }
         <% end %>
       });
@@ -395,6 +411,17 @@
           monthdayFieldRow.style.display = '';
         } else {
           monthdayFieldRow.style.display = 'none';
+        }
+      }
+      <% end %>
+
+      // "Datum im Titel"-Feld: bei jedem gesetzten Intervall anzeigen
+      <% if date_in_subject_cf_id %>
+      if (dateInSubjectFieldRow) {
+        if (showTimeField) {
+          dateInSubjectFieldRow.style.display = '';
+        } else {
+          dateInSubjectFieldRow.style.display = 'none';
         }
       }
       <% end %>

@@ -99,6 +99,34 @@ namespace :redmine_issue_repeat do
       puts "Custom Field 'Intervall Monatstag' erstellt (ID: #{cf_monthday.id})."
     end
 
+    # Erstelle oder aktualisiere Feld "Datum im Titel"
+    cf_date_in_subject = IssueCustomField.find_by(name: 'Intervall Datum im Titel')
+    if cf_date_in_subject
+      puts "Custom Field 'Intervall Datum im Titel' existiert bereits, aktualisiere..."
+      cf_date_in_subject.field_format = 'bool'
+      cf_date_in_subject.is_required = false
+      cf_date_in_subject.visible = true
+      cf_date_in_subject.editable = true
+      cf_date_in_subject.default_value = '0' if cf_date_in_subject.default_value.blank?
+      cf_date_in_subject.trackers = Tracker.all unless cf_date_in_subject.trackers.any?
+      cf_date_in_subject.save!
+      puts "Custom Field 'Intervall Datum im Titel' aktualisiert."
+    else
+      puts "Erstelle Custom Field 'Intervall Datum im Titel'..."
+      cf_date_in_subject = IssueCustomField.new(
+        name: 'Intervall Datum im Titel',
+        field_format: 'bool',
+        is_required: false,
+        visible: true,
+        editable: true,
+        default_value: '0',
+        description: 'Hängt das Datum der jeweiligen Kopie an die Ticketbezeichnung an (z.B. "JourFixe Gruppe 23.10.2026").'
+      )
+      cf_date_in_subject.trackers = Tracker.all
+      cf_date_in_subject.save!
+      puts "Custom Field 'Intervall Datum im Titel' erstellt (ID: #{cf_date_in_subject.id})."
+    end
+
     # Aktualisiere Intervall-Feld mit korrekter Sortierung (ohne custom)
     cf = IssueCustomField.find_by(name: 'Intervall')
     if cf

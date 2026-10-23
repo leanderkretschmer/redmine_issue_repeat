@@ -39,6 +39,41 @@ module RedmineIssueRepeat
       "#{prefix} #{subject}"
     end
 
+    # Liest die pro-Ticket-Option "Intervall Datum im Titel" (Bool-Custom-Field).
+    def date_in_subject_for_issue?(issue)
+      return false unless issue
+      cf = IssueCustomField.find_by(name: 'Intervall Datum im Titel')
+      return false unless cf
+      v = CustomValue.where(customized_type: 'Issue', customized_id: issue.id, custom_field_id: cf.id).limit(1).pluck(:value).first
+      v.to_s.strip == '1' || v.to_s.strip.downcase == 'true'
+    end
+
+    def subject_date_format
+      fmt = settings['subject_date_format'].to_s.strip
+      fmt.empty? ? '%d.%m.%Y' : fmt
+    end
+
+    def format_subject_date(date)
+      return nil if date.nil?
+      date.to_date.strftime(subject_date_format)
+    rescue ArgumentError
+      date.to_date.strftime('%d.%m.%Y')
+    end
+
+    # Baut die Bezeichnung einer Kopie: optionales Präfix und, falls am
+    # Intervallticket aktiviert, das Datum der Kopie hinter dem Titel.
+    # Beispiel: "JourFixe Gruppe" -> "JourFixe Gruppe 23.10.2026"
+    def subject_for_copy(issue, date)
+      base = issue&.subject
+      return base if base.nil?
+      subject = base
+      if date_in_subject_for_issue?(issue)
+        date_str = format_subject_date(date || now_in_zone)
+        subject = "#{subject.rstrip} #{date_str}" if date_str && !subject.end_with?(date_str)
+      end
+      add_prefix_to_subject(subject)
+    end
+
     def parse_time(hhmm)
       return [9, 0] if hhmm.nil? || hhmm.to_s.strip.empty?
       # Validiere Format: HH:MM mit Stunden 0-23 und Minuten 0-59
@@ -214,7 +249,7 @@ module RedmineIssueRepeat
 
     def interval_related_cf_ids
       ids = []
-      ['Intervall', 'Intervall Uhrzeit', 'Intervall Wochentag', 'Intervall Monatstag', 'Intervall Cron Syntax'].each do |name|
+      ['Intervall', 'Intervall Uhrzeit', 'Intervall Wochentag', 'Intervall Monatstag', 'Intervall Cron Syntax', 'Intervall Datum im Titel'].each do |name|
         cf = IssueCustomField.find_by(name: name)
         ids << cf.id if cf
       end

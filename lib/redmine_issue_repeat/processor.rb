@@ -240,7 +240,6 @@ module RedmineIssueRepeat
             new_issue = Issue.new
             new_issue.project = issue.project
             new_issue.tracker = issue.tracker
-            new_issue.subject = Scheduler.add_prefix_to_subject(issue.subject)
             new_issue.description = issue.description
             new_issue.assigned_to = issue.assigned_to
             new_issue.author = issue.author
@@ -250,6 +249,7 @@ module RedmineIssueRepeat
             new_issue.due_date = issue.due_date
             new_issue.estimated_hours = issue.estimated_hours
             new_issue.start_date = Scheduler.start_date_for(interval, Scheduler.time_from_epoch(entry.next_run))
+            new_issue.subject = Scheduler.subject_for_copy(issue, new_issue.start_date)
             if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
               new_issue.due_date = new_issue.start_date
             end
@@ -354,7 +354,6 @@ module RedmineIssueRepeat
         new_issue = Issue.new
         new_issue.project = issue.project
         new_issue.tracker = issue.tracker
-        new_issue.subject = Scheduler.add_prefix_to_subject(issue.subject)
         new_issue.description = issue.description
         new_issue.assigned_to = issue.assigned_to
         new_issue.author = issue.author
@@ -364,6 +363,7 @@ module RedmineIssueRepeat
         new_issue.due_date = issue.due_date
         new_issue.estimated_hours = issue.estimated_hours
         new_issue.start_date = Scheduler.start_date_for(interval, Scheduler.time_from_epoch(sched.next_run_at))
+        new_issue.subject = Scheduler.subject_for_copy(issue, new_issue.start_date)
         if new_issue.due_date && new_issue.start_date && new_issue.start_date > new_issue.due_date
           new_issue.due_date = new_issue.start_date
         end

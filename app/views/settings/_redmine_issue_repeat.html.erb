@@ -40,6 +40,13 @@
   <em>Das Zeichen wird mit einem Leerzeichen vor dem Ticket-Namen gesetzt (z.B. ➚ Ticketname)</em>
 </p>
 
+<p>
+  <label>Datumsformat für Ticket-Namen (strftime)</label>
+  <%= text_field_tag 'settings[subject_date_format]', (settings['subject_date_format'].presence || '%d.%m.%Y'), placeholder: '%d.%m.%Y' %>
+  <br/>
+  <em>Wird verwendet, wenn am Intervallticket „Intervall Datum im Titel" aktiviert ist. Beispiel: „JourFixe Gruppe" → „JourFixe Gruppe <%= Date.today.strftime(RedmineIssueRepeat::Scheduler.subject_date_format) rescue Date.today.strftime('%d.%m.%Y') %>"</em>
+</p>
+
 <h3>Wiederholungs-Zeitpläne</h3>
 <% if ActiveRecord::Base.connection.table_exists?('issue_repeat_schedules') %>
   <table class="list">
